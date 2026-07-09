@@ -2,7 +2,7 @@
 
 **Maciej Mazur** — Niezależny Badacz AI | Warszawa, Polska  
 GitHub: Maciej-EriAmo/Holomem  
-Wersja: 2.5.0 | Data: 2026-04-10 | Licencja: CC BY 4.0
+Wersja: 2.5.1 | Data: 2026-07-09 | Licencja: CC BY 4.0
 
 ---
 
@@ -440,6 +440,7 @@ Obie pierwsze warstwy są konieczne. HSS nie zastępuje VM — HSS gwarantuje w�
 | **HolonFS** | Semantyczne indeksowanie plików (xattr + numpy + JSON) | Szyfrogramy RLWE w `security.hss.lock`; indeksy wektorowe czytelne tylko przez procesy z ważnym $s_{\text{sess}}$ i pasującym AAD. |
 | **Embedder KuRz** | 15-osiowe osadzanie PL+EN | Definiuje partycję pryzmatyczną $\{\mathcal{P}_j\}$ wyrównaną z klastrami osi KuRz. |
 | **hss-daemon** | Uprzywilejowany serwis kryptograficzny przestrzeni użytkownika | Wykonuje szyfrowanie/deszyfrowanie LPR, weryfikację wiązania kontekstu, sprawdzian wariancji, generowanie PrismMask, KEM H-IPC i re-szyfrowanie per-pryzmat. |
+| **Cynober DB** (`karmazyn_hss.py`) | KEM TCP + baza zespołowa (userspace) | Wdrożenie autonomiczne §7.2: profile `proto`/`standard`/`production`, NTT, handshake Cynober-Secure-1.2; szczegóły §7.3. |
 
 ### 7.2 Wdrożenie Autonomiczne: HSS bez HolonOS
 
@@ -453,7 +454,37 @@ HSS nie wymaga HolonOS ani modyfikacji jądra systemu operacyjnego. Może dział
 
 **Największy rynek: multi-agent AI pipelines.** Każda organizacja uruchamiająca agenty AI na wrażliwych danych ma nierozwiązany problem: jeden skompromitowany agent może zobaczyć dane wszystkich innych agentów. Żaden obecny framework agentowy (LangChain, AutoGPT, CrewAI) nie rozwiązuje izolacji semantycznej między agentami — operują na konwencji, nie na gwarancji matematycznej. HSS jako warstwa sidecar daje pierwszą w branży **kryptograficzną izolację percepcji między agentami AI** na istniejącej infrastrukturze.
 
-1. **Stałoczasowy NTT**: Arytmetyka wielomianowa hss-daemon musi być utwardzona przeciwko atakom side-channel z pomiarem czasu. Planowane jest przyjęcie stałoczasowego NTT z liboqs lub implementacji referencyjnej Kyber.
+### 7.3 Implementacja referencyjna: Cynober DB (DBase)
+
+Od lipca 2026 HSS v2.5 jest wdrożone produkcyjnie (prototyp zespołowy) w **[Cynober DB](https://github.com/Maciej-EriAmo/DBase)** — relacyjno-grafowej bazie z jednym protokołem łączności **Cynober-Secure-1.2** (TCP + HSS KEM + HSL + KarminQL RPC). Pakiet **`cynober-db` 7.7.0** na [PyPI](https://pypi.org/project/cynober-db/); **294** testów automatycznych.
+
+**Architektura warstwowa (userspace, bez modyfikacji jądra):**
+
+```
+Klient (CLI / SDK) ──TCP──► cynober_server
+                              │
+                    karmazyn_hss.py  — KEM LPR, handshake
+                    karmazyn_hsl.py  — Φ², rezonans łącza, epoki
+                    cynober_rpc.py   — JSON-RPC + capability cap
+```
+
+**Profile Ring-LWE (`karmazyn_hss.py`).** Trzy profile zgodne z założeniami §2.1 ($N$ potęga 2, $q \equiv 1 \pmod{2N}$ tam gdzie wymagane):
+
+| Profil | $N$ | $q$ | Zastosowanie |
+|---|---|---|---|
+| `proto` | 15 | 256 | Termux / dev; domyślny, kompatybilność wsteczna |
+| `standard` | 128 | 3329 | Zespół / LAN; moduł w stylu Kyber |
+| `production` | 512 | 12289 | Serwer zespołowy; wysoka siła |
+
+Wybór: `KARM_HSS_PROFILE` lub pole `hss_profile` w `~/.karmazyn_client.json`. Handshake Cynober-Secure-1.2 negocjuje profil w ramce `hello`; rozjazd profilu kończy sesję przed RPC.
+
+**NTT negacyclic (`karmazyn_hss_ntt.py`).** Dla `standard` i `production` mnożenie w $R_q = \mathbb{Z}_q[X]/(X^N+1)$ używa NTT $O(N \log N)$ zamiast splotu $O(N^2)$. Profil `proto` pozostaje w domenie współczynnikowej. Wyłączenie: `KARM_HSS_USE_NTT=0`. Testy: `tests/test_hss_profiles.py`, `tests/test_v75.py`.
+
+**Integracja z HSL.** Po KEM handshake wspólny sekret wiąże tunel HSL (HSL Paper v1.2): $\Phi^2$ per węzeł, rotacja epoki (`KARM_HSL_EPOCH_SEC`, domyślnie 3600s), opcjonalny slot QKD (`karmazyn_qkd.py` → `hybrid_link_seed()`), capability token `rpc:query` w żądaniach RPC.
+
+**Weryfikacja end-to-end:** Termux (ARM64) → LAN; brak równoległego TLS/HTTP/ODBC — zgodnie z tezą §7.2 o wdrożeniu autonomicznym HSS bez HolonOS.
+
+1. **Stałoczasowy NTT**: ✅ *częściowo (2026-07):* NTT negacyclic w `karmazyn_hss_ntt.py` dla profili `standard`/`production` w Cynober DB. Utwardzenie stałoczasowe (liboqs / Kyber reference) nadal planowane.
 
 2. **Forward Secrecy dla Plików w Spoczynku**: Forward secrecy na poziomie sesji dotyczy H-IPC. Pliki zaszyfrowane pod $s_{\text{sess}}$ są narażone przy skompromitowaniu klucza sesji. Mechanizm grzechotki epok zapisu (analogiczny do Double Ratchet Signala) jest planowany dla HSS v3.
 
@@ -479,7 +510,7 @@ HSS nie wymaga HolonOS ani modyfikacji jądra systemu operacyjnego. Może dział
 
 ## 9. Wnioski
 
-Przedstawiliśmy **Holograficzne Przestrzenie Sesji v2.5** — architekturę bezpieczeństwa opartą na capability, ugruntowaną w kryptografii post-quantum (LPR/RLWE) i formalnie sprzężoną z metryzowaną przestrzenią stanów kognitywnych $\Phi$.
+Przedstawiliśmy **Holograficzne Przestrzenie Sesji v2.5.1** — architekturę bezpieczeństwa opartą na capability, ugruntowaną w kryptografii post-quantum (LPR/RLWE) i formalnie sprzężoną z metryzowaną przestrzenią stanów kognitywnych $\Phi$.
 
 Kluczowe wkłady tej wersji: (i) **Pochodna PrismMask oparta na KDF** zastępująca addytywną modyfikację klucza — klucze polityk są obliczeniowo niezależne, eliminując ataki skorelowanymi kluczami; (ii) **Ponowne szyfrowanie na poziomie szyfrogramu** dla atenuacji pryzmatów, całkowicie przenosząc maskowanie poza materiał klucza; (iii) **Zaślepiony sprawdzian wariancji** z wstrzykiwaniem szumu i ograniczaniem szybkości, zamykający side-channel wyroczni deszyfrowania; (iv) **Pochodna klucza H-IPC per-pryzmat** przez $K_j = \text{KDF}(K, j)$, zapewniająca niezależne bezpieczeństwo kanałów per-pryzmat; (v) **Przestrzeń Wykonania Programów** (§3.5) — formalny model cyklu życia agenta umożliwiający HolonOS syntezę, izolację i kończenie programów specyficznych dla zadania z kryptograficzną ochroną przed zapisem rdzenia stanu $\Phi$ i pryzmatami poświadczeń zakorzenionymi w sprzęcie.
 
@@ -500,6 +531,8 @@ W HolonOS oznacza to, że syntetyzowany program nie może modyfikować swojego t
 7. Myers, A. C., & Liskov, B. (1997). A decentralized model for information flow control. *ACM SIGOPS Operating Systems Review*, 31(5), 129–142.
 8. Sahai, A., & Waters, B. (2005). Fuzzy identity-based encryption. *EUROCRYPT 2005*, LNCS 3494, 457–473.
 9. Micciancio, D., & Peikert, C. (2012). Trapdoors for lattices. *EUROCRYPT 2012*, LNCS 7237, 700–718. [MP12]
+10. Mazur, M. (2026). *Holographic Session Links v1.2*. GitHub: Maciej-EriAmo/DBase (`HSL_Paper_v1_1_0_EN.md`).
+11. Mazur, M. (2026). *Cynober DB*. GitHub: Maciej-EriAmo/DBase. PyPI: https://pypi.org/project/cynober-db/
 
 ---
 
@@ -524,31 +557,6 @@ Zero kelvina nie jest tu nicością — jest **bazowym szumem kryptograficznym**
 **A.4 Mrożenie Czasu.** Agent hibernowany ma swój stan kryptograficznie zamrożony w $\mathcal{P}_{\text{task}}$. Bez $s_A$ ten stan nie dryfuje, nie degraduje się, nie jest dostępny żadnemu obserwatorowi. Czas dla tego agenta stanął w dokładnym momencie hibernacji — i może być wznowiony wyłącznie przez $\Phi$ re-derywujące $s_A$ z tego samego $s_{\text{sess}}$. Jest to informacyjny odpowiednik dylatacji czasu: dla zewnętrznego obserwatora agent nie istnieje; dla samego agenta nie upłynęła żadna chwila.
 
 **A.5 Sandbox kontra Topologia.** Klasyczny sandbox to ściany — agent może próbować je przebić. HSS to topologia przestrzeni: dane poza autoryzowanymi pryzmatami nie istnieją *dla* agenta w żadnym operacyjnym sensie. Nie ma czego przebijać. Ograniczenie nie jest barierą — jest geometrią rzeczywistości agenta.
-
----
-
-*Korespondencja: GitHub @Maciej-EriAmo · Medium @drwisz*  
-*Licencja: CC BY 4.0*
-
-Przedstawiliśmy **Holograficzne Przestrzenie Sesji v2.5** — architekturę bezpieczeństwa opartą na capability, ugruntowaną w kryptografii post-quantum (LPR/RLWE) i formalnie sprzężoną z metryzowaną przestrzenią stanów kognitywnych $\Phi$.
-
-Kluczowe wkłady tej wersji: (i) **Pochodna PrismMask oparta na KDF** zastępująca addytywną modyfikację klucza — klucze polityk są obliczeniowo niezależne, eliminując ataki skorelowanymi kluczami; (ii) **Ponowne szyfrowanie na poziomie szyfrogramu** dla atenuacji pryzmatów, całkowicie przenosząc maskowanie poza materiał klucza; (iii) **Zaślepiony sprawdzian wariancji** z wstrzykiwaniem szumu i ograniczaniem szybkości, zamykający side-channel wyroczni deszyfrowania; (iv) **Pochodna klucza H-IPC per-pryzmat** przez $K_j = \text{KDF}(K, j)$, zapewniająca niezależne bezpieczeństwo kanałów per-pryzmat; (v) **Przestrzeń Wykonania Programów** (§3.5) — formalny model cyklu życia agenta umożliwiający HolonOS syntezę, izolację i kończenie programów specyficznych dla zadania z kryptograficzną ochroną przed zapisem rdzenia stanu $\Phi$ i pryzmatami poświadczeń zakorzenionymi w sprzęcie.
-
-Centralna teza pozostaje niezmieniona: kontrola dostępu powinna być strukturalną właściwością geometrii kryptograficznej, nie zewnętrzną warstwą polityki. W HolonOS oznacza to, że syntetyzowany program nie może modyfikować swojego twórcy, poświadczenia nie mogą krzyżowo kontaminować między agentami, a stan kognitywny $\Phi$ jest chroniony nie przez politykę oprogramowania, lecz przez matematyczną strukturę pochodnej klucza — niezależnie od tego, jaki kod działa w systemie.
-
----
-
-## Literatura
-
-1. Mazur, M. (2026). *Holon: Holograficzna Architektura Kognitywna dla Persystentnej Pamięci i Świadomości Temporalnej w Konwersacyjnych Systemach AI*. Zenodo. DOI: 10.5281/zenodo.19371554.
-2. Plate, T. A. (2003). *Holographic Reduced Representations*. CSLI Publications.
-3. Lyubashevsky, V., Peikert, C., & Regev, O. (2013). On ideal lattices and learning with errors over rings. *Journal of the ACM*, 60(6), 1–35. [LPR13]
-4. Avanzi, R. et al. (2021). *CRYSTALS-Kyber (version 3.02)*. Zgłoszenie NIST PQC. https://pq-crystals.org/kyber/
-5. Friston, K. (2010). The free-energy principle: a unified brain theory? *Nature Reviews Neuroscience*, 11(2), 127–138.
-6. Shapiro, J. S., & Hardy, N. (2002). EROS: A principle-driven operating system from the ground up. *IEEE Software*, 19(1), 26–33.
-7. Myers, A. C., & Liskov, B. (1997). A decentralized model for information flow control. *ACM SIGOPS Operating Systems Review*, 31(5), 129–142.
-8. Sahai, A., & Waters, B. (2005). Fuzzy identity-based encryption. *EUROCRYPT 2005*, LNCS 3494, 457–473.
-9. Micciancio, D., & Peikert, C. (2012). Trapdoors for lattices. *EUROCRYPT 2012*, LNCS 7237, 700–718. [MP12]
 
 ---
 
