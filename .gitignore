@@ -45,6 +45,8 @@ phi_snapshot*.json
 store_export*.json
 *.holon-karmin.json
 holon_karmin_snapshot.json
+holon_links.json
+*_links.json
 
 # --- Testy / collab (artefakty tymczasowe) ---
 _tmp_*.json

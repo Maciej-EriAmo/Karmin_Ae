@@ -31,6 +31,7 @@ Holon ma być **najlepszą lokalną pamięcią partnera SE** (Grok/CLI): trwał�
 | B6 | Golden ablation report (flat vs prism) 1 komenda | 📋 |
 | B7 | Eksport handoff → `.md` | 📋 |
 | B3b | Karmin RPC / świat `se_memory` (Cynober server) | 📋 po B3 lokalnym |
+| B8 | **Mneme** — meta-język + jawny graf SE (`docs/MNEME.md`, `holon_mneme.py`) | ✅ design+M1–M3 |
 
 ## Plan C — research (nie blokuje SE)
 

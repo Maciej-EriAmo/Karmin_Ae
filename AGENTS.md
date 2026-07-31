@@ -20,6 +20,9 @@ python holon_agent_memory.py handoff
 # filtr projektu:
 python holon_agent_memory.py handoff --project Karmazyn --no-digest
 python holon_agent_memory.py digest --project Holon
+# meta-język SE (graf + RECALL) — docs/MNEME.md
+python -m holon_mneme "FOCUS PROJECT Karmazyn"
+python -m holon_mneme "RECALL \"slab\" TOP 5"
 ```
 
 **Po handoff:** nie zakładaj „wiecznego teraz” — etykiety czasu w store to **przeszłość**.
@@ -58,6 +61,7 @@ python -m unittest tests.test_holon_agent tests.test_memory_eval -q
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan rozwoju |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model |
 | [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | Backup/mirror w Karmin_DB (nie SQLite) |
+| [docs/MNEME.md](docs/MNEME.md) | Mneme-L — pamięć zapytywalna + graf |
 
 ## Profile Config
 

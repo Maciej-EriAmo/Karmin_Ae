@@ -67,6 +67,7 @@ mem.save()
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model / Ollama / URL |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |
 | [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie SQLite**) |
+| [docs/MNEME.md](docs/MNEME.md) | **Mneme** — mała baza SE + meta-język (graf + RECALL) |
 
 ---
 
