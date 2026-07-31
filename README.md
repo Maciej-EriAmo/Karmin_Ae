@@ -1,6 +1,6 @@
 # Holon: Holographic Cognitive Architecture
 
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://opensource.org/licenses/GPL-3.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/Version-5.11-green.svg)](#)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Termux%20%7C%20ARM64-orange.svg)](#)
 [![HSS](https://img.shields.io/badge/Security-HSS%20v2.9-red.svg)](#holonos-security-layer-hss)
@@ -162,7 +162,8 @@ Papier HSS dostępny w repozytorium: [`HSS_Paper_v2.5.0.md`](HSS_Paper_v2.5.0.md
 
 - **Autor:** Maciej Mazur — Independent AI Researcher, Warsaw, Poland
 - **GitHub:** [@Maciej-EriAmo](https://github.com/Maciej-EriAmo) · **Medium:** [@drwisz](https://medium.com/@drwisz)
-- **Licencja:** GPL-3.0
+- **Licencja:** MIT (kod źródłowy w tym repozytorium; zob. [LICENSE](LICENSE))
+- Publikacje akademickie (np. HSS paper) mogą mieć osobną licencję (np. CC BY 4.0) — nie mylić z licencją kodu.
 
 ---
 
