@@ -5,12 +5,41 @@
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Termux%20%7C%20ARM64-orange.svg)](#)
 [![HSS](https://img.shields.io/badge/Security-HSS%20v2.9-red.svg)](#holonos-security-layer-hss)
 
-> **Persistent Memory and Temporal Awareness for Conversational AI.**  
-> **Cryptographic Execution Isolation for AI Agents.**
+> **Trwała pamięć + oś czasu dla LLM / agenta CLI.**  
+> HRR/Φ/HSS to warstwy badawcze — wartość codzienna: fact/work, decay, pastness, inject do promptu.
 
-**Holon** to nakładka architektury poznawczej (cognitive architecture overlay) dla modeli LLM, która zapewnia trwałą, strukturalną pamięć w poprzek sesji konwersacyjnych oraz kryptograficzną izolację między agentami. W przeciwieństwie do klasycznych systemów RAG opartych na bazach wektorowych, Holon implementuje wewnątrzprocesowy system pamięci holograficznej inspirowany **Holographic Reduced Representations (HRR)**, zasadą wolnej energii (**Free Energy Principle**) oraz kodowaniem predykcyjnym (**Rao–Ballard predictive coding**).
+## Co jest kanonem (szczerze)
 
-System został zaprojektowany z myślą o pracy lokalnej na urządzeniach mobilnych (ARM64/Termux), zużywając zaledwie ~30 MB pamięci RAM.
+| Warstwa | Rola | Status |
+|---------|------|--------|
+| **Pamięć agentowa** | `remember` / `recall` / `digest` / `save` | **Produkt SE** — `Config.agent()`, `holon_agent_memory.py` |
+| **Sesja czatu EriAmo** | `main.py` + `Session` | **Produkt chat** — `Config.chat()` |
+| **HRR / Φ / Prism** | reprezentacja + routing | silnik wewnętrzny; ablacja: `Config.flat()` |
+| **HSS / LSM** | izolacja agentów (osobny tor) | security research, nie wymagane do pamięci |
+
+**Profile Config (jawne):**
+- `Config.chat()` — domyślny w `Session` / `main.py` (krótsze epizody, mniejszy store)
+- `Config.agent()` — domyślny w `AgentMemory.open()` (dłuższa trwałość SE)
+- `Config.flat()` — bez Prism (lab / porównania)
+- env: `HOLON_PROFILE=agent|chat|flat`
+
+**Cienkie API:** `from holon_memory_api import open_memory`  
+**Ewal:** `python holon_agent_memory.py eval` (golden, bez LLM)  
+**LLM / lokalny model (szew na kiedyś):**
+```text
+HOLON_LLM_BACKEND=auto|local|ollama|openai|groq|mock
+HOLON_LLM_BASE_URL=http://127.0.0.1:8080/v1   # llama.cpp / vLLM
+HOLON_LLM_MODEL=...
+# albo w kodzie:
+from holon_llm import register_local_model_factory, build_llm_client
+register_local_model_factory(my_factory)
+```
+
+Metryki w sekcji benchmarków poniżej to **wewnętrzne / demo** — nie twierdzimy, że Holon bije Mem0/RAG SaaS na publicznych leaderboardach.
+
+**Holon** to nakładka pamięci i kontekstu czasowego dla LLM: trwałe fact/work, gasnące epizody, pastness w prompcie. Inspiracje (HRR, FEP, predictive coding) są w silniku; **kontrakt użytkownika** to API pamięci + opcjonalny LLM.
+
+System działa lokalnie (CPU/NumPy; Termux/ARM OK), rzędu dziesiątek MB RAM przy małym store.
 
 ---
 

@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """holon_agent_memory.py — cienki adapter pamięci Holona pod agenta kodowego (Grok/CLI).
 
-To jest OSOBNY use-case: Holon-as-memory (ciągłość SE), NIE kanoniczny produkt
-EriAmo/chat. Domyślne Config (store_decay, durable_age_cap, prune) są pod ten profil
-— dłuższa trwałość atomów / rankingu. Product Holon może nadpisać Config przy starcie.
+Use-case: Holon-as-memory (ciągłość SE), NIE kanon czatu EriAmo.
+Profil: zawsze ``Config.agent()`` (jawny; chat = ``Config.chat()`` w Session).
 
-Cel: szybki, tekstowy dostęp do trwałego kontekstu bez pełnej sesji chat/LLM.
+Kontrakt: ``MemoryAPI`` (remember / recall / digest / save) — patrz holon_memory_api.py.
 
   python holon_agent_memory.py digest
   python holon_agent_memory.py remember --fact "..."
@@ -13,10 +12,11 @@ Cel: szybki, tekstowy dostęp do trwałego kontekstu bez pełnej sesji chat/LLM.
   python holon_agent_memory.py recall "query"
   python holon_agent_memory.py seed
   python holon_agent_memory.py stats
+  python holon_agent_memory.py eval
 
 Użycie z kodu:
-  from holon_agent_memory import AgentMemory
-  am = AgentMemory.open()
+  from holon_memory_api import open_memory
+  am = open_memory()          # profile=agent
   print(am.digest())
   am.remember("Preferencja: ...", kind="fact")
   am.save()
@@ -47,9 +47,9 @@ AGENT_SEED: Tuple[Tuple[str, str], ...] = (
      "Agent w tym workspace: Grok (xAI, CLI). Nie jest wbudowanym EriAmo z main.py, "
      "ale może czytać/pisać pamięć Holona przez holon_agent_memory.py, żeby utrzymać ciągłość."),
     ("fact",
-     "Pamięć agenta (osobny projekt, nie kanon EriAmo): holon_memory.json + PersistentMemory. "
-     "is_fact/is_work/insight/reminder = keep_*_forever. Epizody store_decay_hours~90 dni; "
-     "durable_age_cap ranking ~720. Product Holon może mieć inne Config."),
+     "Pamięć agenta: holon_memory.json + Config.agent() (nie Config.chat()). "
+     "is_fact/is_work = keep_*_forever. Epizody ~90 dni; durable_age_cap ranking ~720. "
+     "API: remember/recall/digest/save (holon_memory_api). LLM osobno (holon_llm slot)."),
     ("fact",
      "Kluczowe pliki: holon_memory.py (load/save/integrity), holon_holomem.py (silnik), "
      "holon_holography.py (HRR bind/unbind), holon_config.py, holon_session.py, main.py."),
@@ -80,9 +80,21 @@ class AgentMemory:
         self._started = False
 
     @classmethod
-    def open(cls, memory_path: str = "holon_memory.json",
-             kurz_path: Optional[str] = None) -> "AgentMemory":
-        cfg = Config()
+    def open(
+        cls,
+        memory_path: str = "holon_memory.json",
+        kurz_path: Optional[str] = None,
+        profile: str = "agent",
+        cfg: Optional[Config] = None,
+    ) -> "AgentMemory":
+        if cfg is None:
+            p = (profile or "agent").strip().lower()
+            if p == "chat":
+                cfg = Config.chat()
+            elif p == "flat":
+                cfg = Config.flat(base="agent")
+            else:
+                cfg = Config.agent()
         kurz = kurz_path or memory_path.replace(".json", "_kurz.json")
         emb = Embedder(dim=cfg.dim, dict_path=kurz, time_dim=cfg.time_dim)
         hm = HoloMem(emb, cfg, memory_path)
@@ -379,7 +391,7 @@ class AgentMemory:
             raw["timestamp"] = time.time() - 180 * 24 * 3600
             aged = tmpdir / "aged.json"
             aged.write_text(json.dumps(raw), encoding="utf-8")
-            res = PersistentMemory(str(aged)).load(Config())
+            res = PersistentMemory(str(aged)).load(Config.agent())
             n_fact = sum(1 for i in res["store"] if i.is_fact)
             still = any(token in i.content for i in res["store"])
             check("durable_after_180d", still and n_fact >= 1,
@@ -416,11 +428,18 @@ class AgentMemory:
 
         return {"ok": ok, "checks": results, "stats": st}
 
+    def golden_eval(self) -> dict:
+        """Samowystarczalny golden eval na temp store (nie rusza holon_memory.json)."""
+        from holon_memory_eval import run_golden_eval
+
+        return run_golden_eval()
+
 
 def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
-        "digest", "remember", "recall", "seed", "stats", "collab-test"])
+        "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
+        "llm-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember) lub zapytanie (recall)")
     p.add_argument("--fact", dest="as_fact", action="store_true")
@@ -479,6 +498,29 @@ def _main(argv: Optional[List[str]] = None) -> int:
         print(_json.dumps({"ok": report["ok"], "n_checks": len(report["checks"]),
                            "stats": report["stats"]}, ensure_ascii=False, indent=2))
         return 0 if report["ok"] else 1
+
+    if args.cmd == "eval":
+        import json as _json
+        from holon_memory_eval import run_golden_eval
+        report = run_golden_eval()
+        for c in report["checks"]:
+            mark = "PASS" if c["pass"] else "FAIL"
+            extra = f" — {c['detail']}" if c.get("detail") else ""
+            print(f"[{mark}] {c['name']}{extra}")
+        print()
+        print("GOLDEN_EVAL:", "OK" if report["ok"] else "FAILED")
+        print(_json.dumps(
+            {"ok": report["ok"], "n_checks": len(report["checks"])},
+            ensure_ascii=False, indent=2))
+        return 0 if report["ok"] else 1
+
+    if args.cmd == "llm-slot":
+        import json as _json
+        from holon_llm import describe_llm_slot, build_llm_client
+        print(_json.dumps(describe_llm_slot(), indent=2, ensure_ascii=False))
+        c = build_llm_client(backend="mock", quiet=True)
+        print("mock_client:", type(c).__name__ if c else None)
+        return 0
 
     if args.cmd == "remember":
         text = args.text.strip()

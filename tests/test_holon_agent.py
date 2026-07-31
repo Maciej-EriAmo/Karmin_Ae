@@ -68,9 +68,18 @@ class TestPromptsV2(unittest.TestCase):
         self.assertIn("teatralnego", s)
 
 
+class TestConfigProfiles(unittest.TestCase):
+    def test_agent_vs_chat(self):
+        a, c = Config.agent(), Config.chat()
+        self.assertEqual(a.profile, "agent")
+        self.assertEqual(c.profile, "chat")
+        self.assertGreater(a.store_decay_hours, c.store_decay_hours)
+        self.assertFalse(Config.flat().use_prism)
+
+
 class TestDurableLoad(unittest.TestCase):
     def test_fact_survives_long_absence(self):
-        cfg = Config()
+        cfg = Config.agent()
         emb = Embedder(dim=cfg.dim, dict_path=str(
             Path(tempfile.gettempdir()) / "holon_test_kurz.json"),
             time_dim=cfg.time_dim)

@@ -10,7 +10,7 @@ from holon_config import Config
 from holon_embedder import Embedder
 from holon_holomem import HoloMem
 from holon_watcher import ReminderWatcher
-from holon_llm import build_llm_client
+from holon_llm import build_llm_client, ChatClient
 from holon_prompts import DEFAULT_SYSTEM as HOLON_DEFAULT_SYSTEM
 
 from notes_manager import NotesManager, parse_note_command
@@ -27,11 +27,19 @@ class Session:
 
     def __init__(self, memory_path: str = "holon_memory.json",
                  cfg=None, system: str = None,
-                 model: str = None, api_key: str = None):
+                 model: str = None, api_key: str = None,
+                 llm_client: Optional["ChatClient"] = None):
         self.system = system or self.DEFAULT_SYSTEM
-        self._client = build_llm_client(api_key=api_key, model=model)
+        # Profil produktowy (chat), nie agent — jawny rozdział
+        cfg_ = cfg or Config.from_env(default_profile="chat")
+        self._client = llm_client or build_llm_client(
+            api_key=api_key if api_key is not None else (cfg_.llm_api_key or None),
+            model=model or (cfg_.llm_model or None),
+            backend=cfg_.llm_backend or "auto",
+            base_url=cfg_.llm_base_url or None,
+            timeout_s=cfg_.llm_timeout_s,
+        )
 
-        cfg_ = cfg or Config()
         emb = Embedder(dim=cfg_.dim,
                        dict_path=memory_path.replace(".json", "_kurz.json"),
                        time_dim=cfg_.time_dim)
@@ -46,6 +54,10 @@ class Session:
             return self._call_llm([{"role": "system", "content": prompt_text}])
 
         self.holomem.set_insight_callback(_insight_cb)
+
+    def set_llm_client(self, client: Optional["ChatClient"]) -> None:
+        """Wszczep / podmień LLM w bieżącej sesji (lokalny model na kiedyś)."""
+        self._client = client
 
     def start(self) -> str:
         res = self.holomem.start_session()
