@@ -176,6 +176,14 @@ def run_golden_eval() -> Dict[str, Any]:
         mem.remember("API fact", kind="fact")
         check("api_save", mem.save())
         check("api_stats_facts", mem.stats().get("facts", 0) >= 1)
+        h = mem.handoff(include_digest=False)
+        check("handoff_protocol", h.get("protocol") == "holon-agent-handoff-v1")
+        check("handoff_has_agent_protocol", len(h.get("agent_protocol") or []) >= 3)
+        mem.set_work("Wątek A", project="Holon", max_active=1)
+        mem.set_work("Wątek B", project="Holon", max_active=1)
+        n_work = sum(1 for i in mem.hm.store
+                     if i.is_work and "Holon" in (i.content or ""))
+        check("set_work_demotes_old", n_work == 1, f"work={n_work}")
 
     return {"ok": ok, "checks": checks, "n_pass": sum(1 for c in checks if c["pass"]),
             "n_total": len(checks)}

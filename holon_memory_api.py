@@ -26,12 +26,28 @@ class MemoryAPI(Protocol):
     ) -> List[Tuple[float, Item]]: ...
 
     def digest(
-        self, max_facts: int = 12, max_work: int = 8, max_recent: int = 6
+        self,
+        max_facts: int = 12,
+        max_work: int = 8,
+        max_recent: int = 6,
+        project: str = "",
     ) -> str: ...
 
     def save(self) -> bool: ...
 
     def stats(self) -> dict: ...
+
+    def handoff(
+        self,
+        project: str = "",
+        max_work: int = 4,
+        max_facts: int = 8,
+        include_digest: bool = True,
+    ) -> dict: ...
+
+    def set_work(
+        self, content: str, project: str = "", max_active: int = 3
+    ) -> Item: ...
 
 
 def open_memory(

@@ -38,36 +38,36 @@ from holon_holomem import HoloMem
 from holon_item import Item
 
 
-# Domyślne kotwice pod pracę Grok Build w tym repo — seed idempotentny po treści.
+# Domyślne kotwice pod pracę Grok Build — seed idempotentny po treści.
 AGENT_SEED: Tuple[Tuple[str, str], ...] = (
     ("fact",
-     "Partner użytkownika: Maciek (EriAmo). HolonOS to jego projekt — holograficzna "
-     "architektura poznawcza (HRR/Φ) + warstwa HSS. Komunikacja po polsku, partnersko."),
+     "Partner użytkownika: Maciek (EriAmo). Komunikacja po polsku, partnersko. "
+     "Holon = pamięć SE; KarmazynOs = osobny monorepo runtime (nie fork Holona)."),
     ("fact",
-     "Agent w tym workspace: Grok (xAI, CLI). Nie jest wbudowanym EriAmo z main.py, "
-     "ale może czytać/pisać pamięć Holona przez holon_agent_memory.py, żeby utrzymać ciągłość."),
+     "Agent CLI: Grok (xAI). Bootstrap sesji: `python holon_agent_memory.py handoff` "
+     "(JSON) lub `digest`. Zapis: remember --fact|--work; nie resetuj store bez prośby."),
     ("fact",
-     "Pamięć agenta: holon_memory.json + Config.agent() (nie Config.chat()). "
-     "is_fact/is_work = keep_*_forever. Epizody ~90 dni; durable_age_cap ranking ~720. "
-     "API: remember/recall/digest/save (holon_memory_api). LLM osobno (holon_llm slot)."),
+     "[Holon] Pamięć: Config.agent() + holon_memory.json. Kontrakt MemoryAPI: "
+     "remember/recall/digest/save (holon_memory_api). Profile: agent|chat|flat. "
+     "Ewal: `python holon_agent_memory.py eval`. Docs: docs/ + AGENTS.md."),
     ("fact",
-     "Kluczowe pliki: holon_memory.py (load/save/integrity), holon_holomem.py (silnik), "
-     "holon_holography.py (HRR bind/unbind), holon_config.py, holon_session.py, main.py."),
+     "[Holon] LLM slot (opcjonalny): holon_llm.register_local_model_factory / "
+     "HOLON_LLM_BASE_URL (OpenAI-compatible). Pamięć działa bez LLM."),
     ("fact",
-     "Konwencja pracy z agentem: używać `python holon_agent_memory.py digest` na start sesji; "
-     "ważne ustalenia zapisywać jako fact; aktywne taski jako work; nie resetować pamięci bez prośby."),
+     "[Holon] Kluczowe pliki: holon_agent_memory.py, holon_memory_api.py, holon_config.py, "
+     "holon_holomem.py, holon_memory.py, holon_prompts.py, holon_llm.py, docs/."),
     ("fact",
-     "Diagnostyka (2026-07): po ~112 dniach nieobecności integrity=1.0 ale store epizodyczny=0 "
-     "przez age decay — stąd trwałość fact/work i ten adapter."),
+     "Konwencja multi-projekt: prefiks treści `[Holon]` / `[Karmazyn]` w fact|work; "
+     "handoff --project filtruje. set-work demotuje stare work → fact."),
+    ("fact",
+     "Marker-agent-holon-v2: handoff + golden eval + MemoryAPI (2026-07). "
+     "Testy: unittest tests + `python holon_agent_memory.py eval`."),
     ("work",
-     "Aktywna współpraca: Holon jako pamięć SE dla Grok CLI — digest na start, "
-     "remember fact/work, hybrid recall, durable load po przerwie."),
+     "[Holon] Utrzymywać: handoff na start, eval zielony, docs/ zgodne z kodem; "
+     "nie puchnąć work — set-work / jeden aktywny wątek na projekt."),
     ("work",
-     "Stack EriAmo w toku: Holon (pamięć) + KarmazynOs (runtime A/P/H) + DB_karmin/Cynober "
-     "(KarminQL jako arkusz logiczny). Plany Karmazyn: A Lab / B Product / C Dual-track."),
-    ("fact",
-     "Marker-agent-holon-v1: ten store jest przygotowany pod agenta CLI; "
-     "komenda testu: python holon_agent_memory.py collab-test"),
+     "[Karmazyn] Aktywny runtime SE: C:/Users/drwis/KarmazynOs (github Maciej-EriAmo/KarmazynOs). "
+     "Holon tylko pamięć. Następne Karmazyn: wg Documents/rust_roadmap_tech (po R5)."),
 )
 
 
@@ -195,12 +195,30 @@ class AgentMemory:
         dh = max(0.0, (time.time() - float(created_at)) / 3600.0)
         return TimeDecay.format_pastness(dh)
 
+    def _match_project(self, content: str, project: str) -> bool:
+        if not project:
+            return True
+        c = (content or "").lower()
+        p = project.lower().strip()
+        if f"[{p}]" in c:
+            return True
+        # aliasy
+        aliases = {
+            "karmazyn": ("karmazyn", "kentry", "slab", "karmazynos"),
+            "holon": ("holon", "eriamo", "agent memory", "memoryapi"),
+        }
+        for key, words in aliases.items():
+            if p == key or p in words:
+                return any(w in c for w in words)
+        return p in c
+
     def digest(self, max_facts: int = 12, max_work: int = 8,
-               max_recent: int = 6) -> str:
+               max_recent: int = 6, project: str = "") -> str:
         """Tekst pod wklejenie w kontekst agenta — niski szum, wysoki sygnał.
 
         Healthy temporal: pastness (kiedy), oś czasu, wake po przerwie —
         wspomnienia jako PRZESZŁOŚĆ z dystansem, nie wieczne teraz.
+        ``project`` — filtr (np. Holon, Karmazyn).
         """
         if not self._started:
             self.start()
@@ -208,11 +226,14 @@ class AgentMemory:
         aii = s.get("aii", {})
         lines = [
             "=== HOLON AGENT DIGEST ===",
+            f"profile={getattr(self.hm.cfg, 'profile', '?')} "
             f"turns={s.get('turns')} store={s.get('store')} "
             f"delta_h={s.get('delta_hours')} "
             f"aii={aii.get('emotion')}/focus={aii.get('focus')} "
             f"vac={aii.get('vacuum_signal', 0):+.2f}",
         ]
+        if project:
+            lines.append(f"project_filter={project}")
         wake = getattr(self.hm, "_last_wake", "") or ""
         if wake:
             lines.append(wake)
@@ -228,7 +249,8 @@ class AgentMemory:
         lines.append(f"durable: facts={n_fact} work={n_work} insights={n_ins}")
         lines.append("")
 
-        work = [i for i in self.hm.store if i.is_work]
+        work = [i for i in self.hm.store
+                if i.is_work and self._match_project(i.content, project)]
         work.sort(key=lambda x: (-(x.created_at or 0), x.age))
         if work:
             lines.append("AKTYWNE PROJEKTY / WORK:")
@@ -237,7 +259,9 @@ class AgentMemory:
                 lines.append(f"  • [{when}] {i.content[:400]}")
             lines.append("")
 
-        facts = [i for i in self.hm.store if i.is_fact and not i.is_work]
+        facts = [i for i in self.hm.store
+                 if i.is_fact and not i.is_work
+                 and self._match_project(i.content, project)]
         facts.sort(key=lambda x: (-(x.created_at or 0), x.age))
         if facts:
             lines.append("TRWAŁE FAKTY (z datą — to było wtedy, nie „wieczne teraz”):")
@@ -249,7 +273,8 @@ class AgentMemory:
         # Oś czasu: konkretne ślady w kolejności kalendarzowej (zdrowa sekwencja)
         n_tl = int(getattr(self.hm.cfg, "digest_timeline_items", 8))
         timeline = sorted(
-            [i for i in self.hm.store if i.created_at],
+            [i for i in self.hm.store
+             if i.created_at and self._match_project(i.content, project)],
             key=lambda x: x.created_at,
         )
         if timeline and n_tl > 0:
@@ -267,7 +292,8 @@ class AgentMemory:
             lines.append("")
 
         recent = [i for i in self.hm.store
-                  if not i.is_fact and not i.is_work and not i.is_reminder]
+                  if not i.is_fact and not i.is_work and not i.is_reminder
+                  and self._match_project(i.content, project)]
         recent.sort(key=lambda x: x.age)
         if recent:
             lines.append("OSTATNIE EPIZODY (mogą wygasnąć):")
@@ -319,6 +345,7 @@ class AgentMemory:
         if not self._started:
             self.start()
         base = self.hm.stats()
+        base["profile"] = getattr(self.hm.cfg, "profile", "agent")
         base["facts"] = sum(1 for i in self.hm.store if i.is_fact)
         base["work"] = sum(1 for i in self.hm.store if i.is_work)
         base["insights"] = sum(1 for i in self.hm.store if i.is_insight)
@@ -327,6 +354,96 @@ class AgentMemory:
             if not i.is_fact and not i.is_work and not i.is_insight
             and not i.is_reminder)
         return base
+
+    def set_work(self, content: str, project: str = "",
+                 max_active: int = 3) -> Item:
+        """Ustaw aktywne work; nadmiar work (ten sam projekt) → fact (historia).
+
+        Prefiks ``[Project]`` dodawany gdy ``project`` podany i brak w treści.
+        """
+        content = (content or "").strip()
+        if not content:
+            raise ValueError("pusta treść")
+        proj = (project or "").strip()
+        if proj and f"[{proj}]" not in content and f"[{proj.lower()}]" not in content.lower():
+            content = f"[{proj}] {content}"
+        item = self.remember(content, kind="work", relevance=1.6)
+        works = [i for i in self.hm.store if i.is_work]
+        if proj:
+            works = [w for w in works if self._match_project(w.content, proj)]
+        works.sort(key=lambda x: -(x.created_at or 0))
+        for w in works[max_active:]:
+            if w is item:
+                continue
+            w.is_work = False
+            w.is_fact = True  # historia projektu zostaje durable
+        return item
+
+    def handoff(self, project: str = "", max_work: int = 4,
+                max_facts: int = 8, include_digest: bool = True) -> dict:
+        """Maszynowy bootstrap sesji agenta (JSON) — mniej szumu niż pełny digest.
+
+        Protokół: holon-agent-handoff-v1
+        """
+        if not self._started:
+            self.start()
+        st = self.stats()
+        work = [i for i in self.hm.store
+                if i.is_work and self._match_project(i.content, project)]
+        work.sort(key=lambda x: -(x.created_at or 0))
+        facts = [i for i in self.hm.store
+                 if i.is_fact and not i.is_work
+                 and self._match_project(i.content, project)]
+        facts.sort(key=lambda x: -(x.created_at or 0))
+
+        def pack(i: Item) -> dict:
+            return {
+                "when": self._past_label(i.created_at),
+                "created_at": i.created_at,
+                "content": (i.content or "")[:500],
+                "flags": {
+                    "fact": bool(i.is_fact),
+                    "work": bool(i.is_work),
+                    "insight": bool(i.is_insight),
+                },
+            }
+
+        wake = getattr(self.hm, "_last_wake", "") or ""
+        out = {
+            "protocol": "holon-agent-handoff-v1",
+            "profile": st.get("profile"),
+            "project_filter": project or None,
+            "stats": {
+                "turns": st.get("turns"),
+                "store": st.get("store"),
+                "delta_hours": st.get("delta_hours"),
+                "facts": st.get("facts"),
+                "work": st.get("work"),
+                "episodic": st.get("episodic"),
+            },
+            "wake": wake,
+            "active_work": [pack(i) for i in work[:max_work]],
+            "key_facts": [pack(i) for i in facts[:max_facts]],
+            "agent_protocol": [
+                "1. Na start sesji: handoff (ten JSON) lub digest.",
+                "2. Po decyzji trwałej: remember --fact \"...\" (prefiks [Projekt]).",
+                "3. Aktywny wątek: set-work / remember --work; nie mnożyć work.",
+                "4. Nie kasuj/resetuj holon_memory.json bez prośby użytkownika.",
+                "5. Kod Holon ≠ KarmazynOs — Holon=pamięć; runtime w KarmazynOs.",
+                "6. Ewal regregresji: python holon_agent_memory.py eval",
+                "7. Docs: AGENTS.md, docs/AGENT_WORKFLOW.md, docs/MEMORY_API.md",
+            ],
+            "paths": {
+                "memory": self.memory_path,
+                "docs": "docs/",
+                "agents_md": "AGENTS.md",
+                "api": "holon_memory_api.py",
+            },
+        }
+        if include_digest:
+            out["digest"] = self.digest(
+                max_facts=max_facts, max_work=max_work, project=project)
+        return out
 
     def collab_test(self) -> dict:
         """Powtarzalny test współpracy agenta z pamięcią (nie niszczy store na stałe
@@ -439,21 +556,36 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
-        "llm-slot"])
+        "llm-slot", "handoff", "set-work"])
     p.add_argument("text", nargs="?", default="",
-                   help="treść (remember) lub zapytanie (recall)")
+                   help="treść (remember/set-work) lub zapytanie (recall)")
     p.add_argument("--fact", dest="as_fact", action="store_true")
     p.add_argument("--work", dest="as_work", action="store_true")
     p.add_argument("--kind", default="", help="fact|work|note")
     p.add_argument("--top", type=int, default=8)
     p.add_argument("--path", default="holon_memory.json")
     p.add_argument("--no-save", action="store_true")
+    p.add_argument("--project", default="",
+                   help="filtr / prefiks projektu (Holon, Karmazyn, …)")
+    p.add_argument("--no-digest", action="store_true",
+                   help="handoff: bez pełnego digest w JSON")
+    p.add_argument("--max-active", type=int, default=3,
+                   help="set-work: ile work zostawić aktywnych")
     args = p.parse_args(argv)
 
     am = AgentMemory.open(memory_path=args.path)
 
     if args.cmd == "digest":
-        print(am.digest())
+        print(am.digest(project=args.project))
+        return 0
+
+    if args.cmd == "handoff":
+        import json
+        h = am.handoff(
+            project=args.project,
+            include_digest=not args.no_digest,
+        )
+        print(json.dumps(h, indent=2, ensure_ascii=False, default=str))
         return 0
 
     if args.cmd == "stats":
@@ -464,6 +596,8 @@ def _main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "recall":
         q = args.text or "projekt holon agent praca"
         for score, item in am.recall(q, top_k=args.top):
+            if args.project and not am._match_project(item.content, args.project):
+                continue
             flags = []
             if item.is_fact:
                 flags.append("F")
@@ -483,7 +617,20 @@ def _main(argv: Optional[List[str]] = None) -> int:
         else:
             print(f"seed: +{n} (bez zapisu)")
         print()
-        print(am.digest())
+        print(am.digest(project=args.project))
+        return 0
+
+    if args.cmd == "set-work":
+        text = args.text.strip()
+        if not text:
+            print('Podaj treść: set-work "..." [--project X]', file=sys.stderr)
+            return 2
+        item = am.set_work(text, project=args.project, max_active=args.max_active)
+        if not args.no_save:
+            ok = am.save()
+            print(f"set-work id={item.id[:8]}… save={'ok' if ok else 'FAIL'}")
+        else:
+            print(f"set-work id={item.id[:8]}… (bez zapisu)")
         return 0
 
     if args.cmd == "collab-test":
