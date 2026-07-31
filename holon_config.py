@@ -25,14 +25,26 @@ class Config:
         [168.0, 120.0,  96.0,  72.0],
         [720.0, 540.0, 360.0, 240.0],
     ])
-    store_decay_hours:    float = 336.0
+    # ── Pamięć AGENTA (Grok CLI / SE) — osobny projekt, NIE kanon EriAmo product ──
+    # fact/work i tak keep_*_forever; dłuższy horyzont epizodów + ranking_age
+    # żeby przerwy tygodniami nie zerowały kontekstu współpracy.
+    # Produkt Holon/EriAmo może nadpisać Config(...) przy starcie sesji czatu.
+    store_decay_hours:    float = 2160.0  # ~90 dni epizody (było 14 / 336h)
     # Trwałe typy (fact/work/insight/reminder): nie giną po store_decay_hours.
-    # Po długiej nieobecności age jest przycinany, żeby ranking recall nie
-    # karał ich jak martwych epizodów (agent CLI / partner SE).
-    durable_age_cap:      int   = 48
+    # ranking_age (pole Item.age) może być przycięte — to tylko waga recall.
+    # Kalendarz (created_at) NIGDY nie jest kasowany: pastness / „to było wtedy”.
+    # (Model „zdrowego umysłu”: dystans czasowy w autobiografii; unikać wzorca
+    # „wieczne teraz” bez kontekstu kiedy — por. zaburzenia sekwencji/czasu
+    # w literaturze o pamięci pourazowej vs epizodycznej z kontekstem.)
+    durable_age_cap:      int   = 720     # ~miesiąc w jednostkach rankingu (było 48)
     keep_facts_forever:   bool  = True
     keep_work_forever:    bool  = True
-    work_decay_hours:     float = 2160.0   # ~90 dni, gdy keep_work_forever=False
+    work_decay_hours:     float = 8760.0  # ~1 rok, gdy keep_work_forever=False
+    # Healthy temporal: baseline afektu wraca po przerwie; vacuum nie zostaje
+    # zamrożony jak „ciało w trybie alarmu” bez nowego bodźca.
+    healthy_temporal_mode: bool  = True
+    aii_baseline_half_life_h: float = 72.0   # ~3 dni → vacuum/emocja → neutral
+    digest_timeline_items: int   = 8
     phi_min_norm:         float = 0.1
     phi_ortho_beta:       float = 0.05
     vacuum_age_tau:       float = 50.0
@@ -55,7 +67,7 @@ class Config:
     soft_vacuum_interval: int   = 4
     soft_decay_factor:    float = 0.96
     hard_prune_interval:  int   = 20
-    hard_prune_store_max: int   = 120
+    hard_prune_store_max: int   = 400  # agent memory: więcej kotwic SE (było 120)
     focus_boost:          float = 1.25
     phase_shifts_learnable: bool = True
     conversation_history_size: int = 12

@@ -28,11 +28,32 @@ from holon_agent_memory import AgentMemory
 import uuid
 
 
+class TestHealthyTemporal(unittest.TestCase):
+    def test_pastness_labels(self):
+        from holon_aii import TimeDecay
+        self.assertIn("min", TimeDecay.format_pastness(0.5))
+        self.assertIn("d", TimeDecay.format_pastness(48))
+        self.assertIn("PRZESZŁOŚĆ", TimeDecay.wake_message(100.0, 10, 5, 0.4))
+
+    def test_aii_relaxes_after_long_gap(self):
+        from holon_aii import AIIState
+        a = AIIState(None)
+        a.emotion = "strach"
+        a.vacuum_signal = -1.0
+        a.focus_active = True
+        a.relax_toward_baseline(400.0, half_life_hours=72.0)
+        self.assertEqual(a.emotion, "neutral")
+        self.assertLess(abs(a.vacuum_signal), 0.05)
+        self.assertFalse(a.focus_active)
+
+
 class TestPromptsV2(unittest.TestCase):
     def test_core_has_truth_and_priority(self):
         self.assertIn("Nie wymyślaj faktów", DEFAULT_SYSTEM)
         self.assertIn("Najpierw treść merytoryczna", DEFAULT_SYSTEM)
         self.assertNotIn("CRITICAL DIRECTIVES", DEFAULT_SYSTEM)
+        self.assertTrue(
+            "CZAS" in DEFAULT_SYSTEM or "przeszłość" in DEFAULT_SYSTEM.lower())
 
     def test_aware_has_tools(self):
         self.assertIn("zapisz:", DEFAULT_SYSTEM_AWARE)

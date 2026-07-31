@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """holon_agent_memory.py — cienki adapter pamięci Holona pod agenta kodowego (Grok/CLI).
 
+To jest OSOBNY use-case: Holon-as-memory (ciągłość SE), NIE kanoniczny produkt
+EriAmo/chat. Domyślne Config (store_decay, durable_age_cap, prune) są pod ten profil
+— dłuższa trwałość atomów / rankingu. Product Holon może nadpisać Config przy starcie.
+
 Cel: szybki, tekstowy dostęp do trwałego kontekstu bez pełnej sesji chat/LLM.
 
   python holon_agent_memory.py digest
-  python holon_agent_memory.py remember --fact "..." 
+  python holon_agent_memory.py remember --fact "..."
   python holon_agent_memory.py remember --work "..."
   python holon_agent_memory.py recall "query"
   python holon_agent_memory.py seed
@@ -43,8 +47,9 @@ AGENT_SEED: Tuple[Tuple[str, str], ...] = (
      "Agent w tym workspace: Grok (xAI, CLI). Nie jest wbudowanym EriAmo z main.py, "
      "ale może czytać/pisać pamięć Holona przez holon_agent_memory.py, żeby utrzymać ciągłość."),
     ("fact",
-     "Pamięć: holon_memory.json + PersistentMemory. is_fact/is_work/insight/reminder są trwałe "
-     "(nie giną po store_decay). Zwykłe epizody wygasają ~14 dni (store_decay_hours=336)."),
+     "Pamięć agenta (osobny projekt, nie kanon EriAmo): holon_memory.json + PersistentMemory. "
+     "is_fact/is_work/insight/reminder = keep_*_forever. Epizody store_decay_hours~90 dni; "
+     "durable_age_cap ranking ~720. Product Holon może mieć inne Config."),
     ("fact",
      "Kluczowe pliki: holon_memory.py (load/save/integrity), holon_holomem.py (silnik), "
      "holon_holography.py (HRR bind/unbind), holon_config.py, holon_session.py, main.py."),
@@ -170,9 +175,21 @@ class AgentMemory:
         scored.sort(key=lambda x: -x[0])
         return scored[:top_k]
 
+    @staticmethod
+    def _past_label(created_at: float) -> str:
+        from holon_aii import TimeDecay
+        if not created_at:
+            return "?"
+        dh = max(0.0, (time.time() - float(created_at)) / 3600.0)
+        return TimeDecay.format_pastness(dh)
+
     def digest(self, max_facts: int = 12, max_work: int = 8,
                max_recent: int = 6) -> str:
-        """Tekst pod wklejenie w kontekst agenta — niski szum, wysoki sygnał."""
+        """Tekst pod wklejenie w kontekst agenta — niski szum, wysoki sygnał.
+
+        Healthy temporal: pastness (kiedy), oś czasu, wake po przerwie —
+        wspomnienia jako PRZESZŁOŚĆ z dystansem, nie wieczne teraz.
+        """
         if not self._started:
             self.start()
         s = self.hm.stats()
@@ -181,10 +198,18 @@ class AgentMemory:
             "=== HOLON AGENT DIGEST ===",
             f"turns={s.get('turns')} store={s.get('store')} "
             f"delta_h={s.get('delta_hours')} "
-            f"aii={aii.get('emotion')}/focus={aii.get('focus')}",
+            f"aii={aii.get('emotion')}/focus={aii.get('focus')} "
+            f"vac={aii.get('vacuum_signal', 0):+.2f}",
         ]
-        wake = getattr(self.hm, "_delta_hours", None)
-        # wake z ostatniego load — HoloMem nie trzyma stringa; zbuduj skrót
+        wake = getattr(self.hm, "_last_wake", "") or ""
+        if wake:
+            lines.append(wake)
+        elif float(s.get("delta_hours") or 0) >= 0.1:
+            from holon_aii import TimeDecay
+            lines.append(TimeDecay.wake_message(
+                float(s["delta_hours"]), int(s.get("turns") or 0),
+                int(s.get("store") or 0),
+                float(getattr(self.hm, "_last_coherence", 1.0))))
         n_fact = sum(1 for i in self.hm.store if i.is_fact)
         n_work = sum(1 for i in self.hm.store if i.is_work)
         n_ins = sum(1 for i in self.hm.store if i.is_insight)
@@ -192,19 +217,41 @@ class AgentMemory:
         lines.append("")
 
         work = [i for i in self.hm.store if i.is_work]
-        work.sort(key=lambda x: (x.age, -x.relevance))
+        work.sort(key=lambda x: (-(x.created_at or 0), x.age))
         if work:
             lines.append("AKTYWNE PROJEKTY / WORK:")
             for i in work[:max_work]:
-                lines.append(f"  • {i.content[:400]}")
+                when = self._past_label(i.created_at)
+                lines.append(f"  • [{when}] {i.content[:400]}")
             lines.append("")
 
         facts = [i for i in self.hm.store if i.is_fact and not i.is_work]
-        facts.sort(key=lambda x: (x.age, -x.relevance))
+        facts.sort(key=lambda x: (-(x.created_at or 0), x.age))
         if facts:
-            lines.append("TRWAŁE FAKTY:")
+            lines.append("TRWAŁE FAKTY (z datą — to było wtedy, nie „wieczne teraz”):")
             for i in facts[:max_facts]:
-                lines.append(f"  • {i.content[:300]}")
+                when = self._past_label(i.created_at)
+                lines.append(f"  • [{when}] {i.content[:300]}")
+            lines.append("")
+
+        # Oś czasu: konkretne ślady w kolejności kalendarzowej (zdrowa sekwencja)
+        n_tl = int(getattr(self.hm.cfg, "digest_timeline_items", 8))
+        timeline = sorted(
+            [i for i in self.hm.store if i.created_at],
+            key=lambda x: x.created_at,
+        )
+        if timeline and n_tl > 0:
+            lines.append("OŚ CZASU (od starszych → nowszych, fragment):")
+            # pokaż ogon najnowszych z zachowaniem kolejności
+            for i in timeline[-n_tl:]:
+                flags = []
+                if i.is_fact:
+                    flags.append("F")
+                if i.is_work:
+                    flags.append("W")
+                tag = "".join(flags) or "E"
+                when = self._past_label(i.created_at)
+                lines.append(f"  · {when} [{tag}] {i.content[:160]}")
             lines.append("")
 
         recent = [i for i in self.hm.store
@@ -213,7 +260,8 @@ class AgentMemory:
         if recent:
             lines.append("OSTATNIE EPIZODY (mogą wygasnąć):")
             for i in recent[:max_recent]:
-                lines.append(f"  • [age={i.age}] {i.content[:220]}")
+                when = self._past_label(i.created_at)
+                lines.append(f"  • [{when}|age={i.age}] {i.content[:220]}")
             lines.append("")
 
         if not work and not facts:

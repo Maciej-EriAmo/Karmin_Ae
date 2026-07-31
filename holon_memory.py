@@ -476,6 +476,9 @@ class PersistentMemory:
                     continue
                 if not durable and not is_work and age_now > max_age:
                     continue
+                # ranking_age: durable nie tonie w rankingu po latach ciszy,
+                # ALE created_at zostaje nietknięty (pastness / oś kalendarzowa).
+                # Nie kasujemy „kiedy” — tylko miękka waga starzenia w recall.
                 if durable:
                     age_now = min(age_now, age_cap)
 

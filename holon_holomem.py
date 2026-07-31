@@ -54,6 +54,8 @@ class HoloMem:
         self.aii                      = AIIState(embedder)
         self._session_start_turn      = 0
         self._delta_hours             = 0.0
+        self._last_wake               = ""
+        self._last_coherence          = 1.0
         self.insight_llm_callback     = None
 
         self.last_error: Optional[np.ndarray]    = None
@@ -83,6 +85,14 @@ class HoloMem:
         self.turns        = res["turns"]
         self._delta_hours = res["delta_hours"]
         self.aii.from_dict(res.get("aii", {}))
+        # Healthy mind: po przerwie baseline afektu wraca (habituation),
+        # vacuum nie zostaje zamrożony bez nowego bodźca.
+        if getattr(self.cfg, "healthy_temporal_mode", True):
+            self.aii.relax_toward_baseline(
+                float(res.get("delta_hours") or 0.0),
+                float(getattr(self.cfg, "aii_baseline_half_life_h", 72.0)))
+        self._last_wake = res.get("wake") or ""
+        self._last_coherence = float(res.get("coherence") or 1.0)
 
         saved_stab = res.get("phi_stability")
         if saved_stab is not None:
@@ -493,8 +503,23 @@ class HoloMem:
                 if system_prompt else [])
         mem_parts = []
         try:
-            from holon_prompts import format_internal_state
+            from holon_prompts import (
+                format_internal_state,
+                format_temporal_context,
+                format_memory_bullet,
+            )
             mem_parts.append(format_internal_state(self.aii))
+            # Widoczne w ROZMOWIE (nie tylko digest CLI): pastness + oś
+            mem_parts.append(format_temporal_context(
+                delta_hours=float(self._delta_hours or 0.0),
+                wake=getattr(self, "_last_wake", "") or "",
+                coherence=float(getattr(self, "_last_coherence", 1.0) or 1.0),
+                turns=int(self.turns or 0),
+                store_size=len(self.store or []),
+                window_items=window or [],
+                timeline_n=int(getattr(self.cfg, "digest_timeline_items", 8)),
+            ))
+            _bullet = format_memory_bullet
         except ImportError:
             emo_pl = {
                 "radosc": "radość/ekscytacja", "zaskoczenie": "zaskoczenie/ciekawość",
@@ -508,6 +533,7 @@ class HoloMem:
                 f"Focus na zadaniu: {'AKTYWNY' if self.aii.focus_active else 'BRAK'}\n"
                 f"Nie recytuj tego bloku. Najpierw treść, barwa w tle."
             )
+            _bullet = lambda i, max_len=300: f"• {(i.content or '')[:max_len]}"
 
         if window:
             ctx        = [i for i in window if i.content != user_message]
@@ -517,18 +543,19 @@ class HoloMem:
 
             if work_items:
                 mem_parts.append(
-                    "AKTYWNE PROJEKTY (najwyższy priorytet — to nad czym pracujemy):\n"
-                    + "\n".join(f"• {i.content[:400]}" for i in work_items))
+                    "AKTYWNE PROJEKTY (najwyższy priorytet — z datą):\n"
+                    + "\n".join(_bullet(i, 400) for i in work_items))
             if fact_items:
                 mem_parts.append(
-                    "TRWAŁE FAKTY (zawsze prawdziwe — nie mów że nie wiesz):\n"
-                    + "\n".join(f"• {i.content[:300]}" for i in fact_items))
+                    "TRWAŁE FAKTY (prawdziwe; to było wtedy — nie „wieczne teraz”):\n"
+                    + "\n".join(_bullet(i, 300) for i in fact_items))
             if regular:
                 max_chars = max(200, 9856 // max(1, len(regular)))
                 mem_parts.append(
-                    "PAMIĘĆ SESJI:\n" + "\n---\n".join(
-                        f"[t-{i.age}{'★' if i.recalled else ''}"
-                        f"{'💡' if i.is_insight else ''}] {i.content[:max_chars]}"
+                    "PAMIĘĆ SESJI (epizody z dystansem czasowym):\n" + "\n---\n".join(
+                        f"[{_bullet(i, max_chars).lstrip('• ').strip()}]"
+                        f"{' ★' if i.recalled else ''}"
+                        f"{' 💡' if i.is_insight else ''}"
                         for i in regular))
 
         if mem_parts:

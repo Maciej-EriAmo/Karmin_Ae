@@ -7,7 +7,8 @@ v2: mniej cosplay-tabu, więcej kontraktu prawdy i spokoju afektu.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import time
+from typing import Any, List, Optional, Sequence
 
 
 # ── Core (wszystkie warianty sesji) ─────────────────────────────────────────
@@ -38,6 +39,12 @@ STAN WEWNĘTRZNY:
 • Uwzględniaj blok STAN WEWNĘTRZNY, gdy jest — jako cichy regulator tonu.
 • Przy emocji neutral i vacuum bliskim zera: spokój, zero teatralnego afektu.
 • Nie recytuj bloku stanu; nie rób z emocji głównego tematu, chyba że użytkownik o to prosi.
+
+CZAS (zdrowa oś — WIDOCZNE W ROZMOWIE):
+• Blok OŚ CZASU / etykiety [X temu] są częścią Twojej wiedzy — gdy odnosisz się do pamięci, \
+naturalnie zaznaczaj dystans („wtedy”, „niedawno”, „po przerwie”), nie udawaj wiecznego teraz.
+• Fakty i epizody mają przeszłość: to już było; teraźniejszość = ta rozmowa.
+• Długa przerwa = dystans, nie amnezja tożsamości; kojarz treść + kolejność czasu bez dramatu.
 """
 
 # ── Dodatek: notatki / zadania (AwareSession) ───────────────────────────────
@@ -103,3 +110,70 @@ def format_internal_state(aii: Any) -> str:
         "Nie recytuj tego bloku. Nie schodź w dysclaimery o byciu modelem. "
         "Najpierw treść merytoryczna, barwa w tle."
     )
+
+
+def past_label(created_at: float) -> str:
+    """Etykieta pastness do wstrzyknięcia w treść rozmowy."""
+    from holon_aii import TimeDecay
+    if not created_at:
+        return "?"
+    dh = max(0.0, (time.time() - float(created_at)) / 3600.0)
+    return TimeDecay.format_pastness(dh)
+
+
+def format_temporal_context(
+    *,
+    delta_hours: float = 0.0,
+    wake: str = "",
+    coherence: float = 1.0,
+    turns: int = 0,
+    store_size: int = 0,
+    window_items: Optional[Sequence[Any]] = None,
+    timeline_n: int = 6,
+) -> str:
+    """Blok widoczny w każdej turze rozmowy: przerwa + oś + pastness.
+
+    Cel: skopiowany model „zdrowej” osi czasu ma być w czacie, nie tylko w CLI digest.
+    """
+    from holon_aii import TimeDecay
+
+    lines: List[str] = ["[SYSTEM - OŚ CZASU / PASTNESS]"]
+    if wake and str(wake).strip():
+        lines.append(str(wake).strip())
+    elif delta_hours and float(delta_hours) >= 0.1:
+        lines.append(TimeDecay.wake_message(
+            float(delta_hours), int(turns), int(store_size), float(coherence)))
+    else:
+        lines.append(
+            "Sesja ciągła (krótka przerwa). Teraźniejszość = ta rozmowa; "
+            "wpisy z pamięci i tak mają etykiety [X temu]."
+        )
+
+    items = list(window_items or [])
+    dated = [i for i in items if getattr(i, "created_at", None)]
+    dated.sort(key=lambda x: float(x.created_at))
+    if dated and timeline_n > 0:
+        lines.append("Ślady w oknie (starsze → nowsze):")
+        for i in dated[-timeline_n:]:
+            flags = []
+            if getattr(i, "is_fact", False):
+                flags.append("F")
+            if getattr(i, "is_work", False):
+                flags.append("W")
+            tag = "".join(flags) or "E"
+            when = past_label(float(i.created_at))
+            content = (getattr(i, "content", "") or "")[:140]
+            lines.append(f"  · [{when}] ({tag}) {content}")
+
+    lines.append(
+        "ZASADA WIDOCZNA: gdy korzystasz z pamięci, zaznacz dystans czasowy "
+        "(„wtedy / niedawno / po przerwie”). Nie zlewaj przeszłości z „teraz”."
+    )
+    return "\n".join(lines)
+
+
+def format_memory_bullet(item: Any, max_len: int = 300) -> str:
+    """Jedna linia pamięci z obowiązkową pastness — do faktów/work/epizodów w czacie."""
+    when = past_label(float(getattr(item, "created_at", 0) or 0))
+    body = (getattr(item, "content", "") or "")[:max_len]
+    return f"• [{when}] {body}"
