@@ -29,17 +29,15 @@ Szczegóły: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Agent: **[AGENT
 ```bash
 pip install -r requirements.txt
 
-# bootstrap store + kotwice
-python holon_agent_memory.py seed
+# === START DLA AGENTA (jedna komenda) ===
+python agent_boot.py
+# python agent_boot.py --project Karmazyn
+# python agent_boot.py --no-banner
 
-# start sesji agenta (JSON)
-python holon_agent_memory.py handoff --no-digest
-
-# zapis
-python holon_agent_memory.py remember --fact "[Holon] …"
-python holon_agent_memory.py set-work "Następny wątek" --project Karmazyn
-
-# reggresja
+python holon_agent_memory.py seed          # raz / odswiezenie kotwic
+python -m holon_mneme --repl               # meta-jezyk + graf
+python holon_agent_memory.py remember --fact "[Holon] ..."
+python holon_agent_memory.py set-work "..." --project Karmazyn
 python holon_agent_memory.py eval
 ```
 
@@ -48,10 +46,12 @@ from holon_memory_api import open_memory
 
 mem = open_memory()  # Config.agent()
 print(mem.handoff(project="Karmazyn", include_digest=False))
-mem.remember("[Karmazyn] …", kind="fact")
-mem.set_work("…", project="Karmazyn")
+mem.remember("[Karmazyn] ...", kind="fact")
+mem.set_work("...", project="Karmazyn")
 mem.save()
 ```
+
+Patrz tez: [AGENTS.md](AGENTS.md) (kontrakt startowy).
 
 ---
 

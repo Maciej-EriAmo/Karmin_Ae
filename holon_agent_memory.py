@@ -44,8 +44,9 @@ AGENT_SEED: Tuple[Tuple[str, str], ...] = (
      "Partner użytkownika: Maciek (EriAmo). Komunikacja po polsku, partnersko. "
      "Holon = pamięć SE; KarmazynOs = osobny monorepo runtime (nie fork Holona)."),
     ("fact",
-     "Agent CLI: Grok (xAI). Bootstrap sesji: `python holon_agent_memory.py handoff` "
-     "(JSON) lub `digest`. Zapis: remember --fact|--work; nie resetuj store bez prośby."),
+     "Agent CLI: Grok (xAI). OBOWIĄZKOWY start: `cd C:\\Users\\drwis\\holonOs` "
+     "&& `python agent_boot.py` (lub agent_boot.cmd). Potem Mneme-L / remember. "
+     "Nie chwal cudzych memory SaaS — tu jest własny stack SE."),
     ("fact",
      "[Holon] Pamięć: Config.agent() + holon_memory.json. Kontrakt MemoryAPI: "
      "remember/recall/digest/save (holon_memory_api). Profile: agent|chat|flat. "
@@ -614,7 +615,7 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
-        "llm-slot", "handoff", "set-work",
+        "llm-slot", "handoff", "set-work", "boot",
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
@@ -639,6 +640,17 @@ def _main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "digest":
         print(am.digest(project=args.project))
         return 0
+
+    if args.cmd == "boot":
+        # alias → agent_boot.py (jedna ścieżka dla agenta)
+        from agent_boot import main as boot_main
+        boot_argv = []
+        if args.project:
+            boot_argv.extend(["--project", args.project])
+        if not args.no_digest:
+            boot_argv.append("--full")
+        boot_argv.extend(["--path", args.path])
+        return int(boot_main(boot_argv) or 0)
 
     if args.cmd == "handoff":
         import json

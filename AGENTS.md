@@ -1,71 +1,113 @@
-# AGENTS.md — Holon jako pamięć dla agenta (Grok / CLI)
+# AGENTS.md — ścieżka dla Grok / CLI (czytaj TO najpierw)
 
-Ten plik jest **kontraktem startowym** dla agenta pracującego w tym repo lub używającego Holona jako store SE.
+> **Cudze chwalicie, swego nie znacie.**  
+> W tym workspace pamięć SE **już jest**: Holon + Mneme + handoff.  
+> Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.
 
-## Rola Holona
+---
 
-| Jest | Nie jest |
-|------|----------|
-| Trwała pamięć współpracy (fact / work / pastness) | Kanoniczny produkt czatu EriAmo (to `main.py` + `Config.chat()`) |
-| Bootstrap kontekstu między sesjami | Silnik KarmazynOs (osobne repo `C:/Users/drwis/KarmazynOs`) |
-| Cienkie API bez LLM | Wymaganie GPU / chmury |
+## 0. OBOWIĄZKOWY START SESJI (jedna komenda)
 
-## Bootstrap sesji (obowiązkowy rytuał)
+```bat
+cd /d C:\Users\drwis\holonOs
+python agent_boot.py
+```
 
-```bash
-# z katalogu holonOs
-python holon_agent_memory.py handoff --no-digest
-# albo z pełnym tekstem:
-python holon_agent_memory.py handoff
-# filtr projektu:
-python holon_agent_memory.py handoff --project Karmazyn --no-digest
-python holon_agent_memory.py digest --project Holon
-# meta-język SE (graf + RECALL) — docs/MNEME.md
+Z filtrem projektu:
+
+```bat
+python agent_boot.py --project Karmazyn
+python agent_boot.py --project Holon
+```
+
+Tylko JSON (pipe):
+
+```bat
+python agent_boot.py --no-banner
+```
+
+Alias Windows: `agent_boot.cmd` · PowerShell: `.\agent_boot.ps1`
+
+**Po bootcie:** kontekst = `active_work` + `key_facts` + `when`.  
+Nie zmyślaj „stanu projektu” z powietrza.
+
+---
+
+## 1. Co tu MACIE (wasze, nie cudze)
+
+| Narzędzie | Po co | Komenda |
+|-----------|--------|---------|
+| **agent_boot** | bootstrap JSON | `python agent_boot.py` |
+| **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
+| **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |
+| **remember / set-work** | zapis fact/work | `python holon_agent_memory.py remember --fact "…"` |
+| **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
+| **eval** | reggresja | `python holon_agent_memory.py eval` |
+
+Docs (głębiej):
+
+- [docs/MNEME.md](docs/MNEME.md) — meta-język  
+- [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) — workflow  
+- [docs/MEMORY_API.md](docs/MEMORY_API.md) — API  
+- [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) — Karmin ≠ primary SE  
+
+---
+
+## 2. Protokół w trakcie sesji
+
+```text
+boot → (opcjonalnie) Mneme RECALL/NEAR/WALK
+     → praca w kodzie (Holon lub KarmazynOs — nie mylić)
+     → HOLD fact / remember --fact   (trwałe)
+     → set-work / HOLD work          (aktywny wątek)
+```
+
+### Mneme (przykłady)
+
+```bat
 python -m holon_mneme "FOCUS PROJECT Karmazyn"
-python -m holon_mneme "RECALL \"slab\" TOP 5"
+python -m holon_mneme "RECALL \"slab freelist\" TOP 5"
+python -m holon_mneme "NEAR \"kentry\" TOP 5"
+python -m holon_mneme "HOLD fact \"…\" PROJECT Karmazyn" --save
 ```
 
-**Po handoff:** nie zakładaj „wiecznego teraz” — etykiety czasu w store to **przeszłość**.
+### Zapis bez Mneme
 
-## Zapis
-
-```bash
-python holon_agent_memory.py remember --fact "[Holon] Ustalenie: ..."
-python holon_agent_memory.py remember --work "[Karmazyn] Następny krok: ..."
-# preferowane dla aktywnego wątku (demotuje stare work → fact):
-python holon_agent_memory.py set-work "R6 freestanding po golden" --project Karmazyn
+```bat
+python holon_agent_memory.py remember --fact "[Karmazyn] …"
+python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 ```
 
-## Testy / regregresja
+---
 
-```bash
-python holon_agent_memory.py eval          # golden, temp store
-python -m unittest tests.test_holon_agent tests.test_memory_eval -q
-```
+## 3. Mapa dysku (żeby nie błądzić)
 
-## Zakazy
+| Ścieżka | Rola |
+|---------|------|
+| `C:\Users\drwis\holonOs` | **pamięć SE + ten plik** |
+| `C:\Users\drwis\KarmazynOs` | runtime / OS / Rust — **nie** fork Holona |
+| `C:\Users\drwis\DBase` | Karmin_DB / Cynober — skarbiec, nie handoff |
 
-1. **Nie** `reset` / kasowanie `holon_memory.json` bez wyraźnej prośby użytkownika.  
-2. **Nie** mylić workspace `holonOs` z `KarmazynOs` — kod runtime jest w Karmazyn.  
-3. **Nie** mnożyć work bez `set-work` / demotion.  
-4. **Nie** traktować README-benchmarków jako public leaderboard.
+`holon_memory.json` = stan umysłu (gitignore). **Nie kasować / nie resetować** bez prośby użytkownika.
 
-## Dokumentacja
+---
 
-| Doc | Treść |
-|------|--------|
-| [docs/README.md](docs/README.md) | Indeks |
-| [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Pełny workflow SE |
-| [docs/MEMORY_API.md](docs/MEMORY_API.md) | Kontrakt API |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Warstwy systemu |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Plan rozwoju |
-| [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model |
-| [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | Backup/mirror w Karmin_DB (nie SQLite) |
-| [docs/MNEME.md](docs/MNEME.md) | Mneme-L — pamięć zapytywalna + graf |
+## 4. Zakazy
 
-## Profile Config
+1. Start sesji **bez** `agent_boot.py` / handoff gdy praca wymaga ciągłości.  
+2. Chwalenie zewnętrznych memory SaaS zamiast użycia tutejszego boot.  
+3. Mylenie edycji Holon ↔ KarmazynOs.  
+4. Work-spam — używaj `set-work` / demotion.  
+5. SQL / pełny KarminQL w prompcie zamiast **Mneme-L**.
 
-- Agent CLI: `Config.agent()` (domyślne w `AgentMemory.open`)
-- Chat EriAmo: `Config.chat()` (`Session` / `main.py`)
-- Ablacja: `Config.flat()` — `use_prism=False`
-- Env: `HOLON_PROFILE=agent|chat|flat`
+---
+
+## 5. Profile Config
+
+- Agent: `Config.agent()` — domyślne w `AgentMemory` / boot  
+- Chat EriAmo: `Config.chat()` — `main.py`  
+- Env: `HOLON_PROFILE`, `HOLON_KARMIN_PATH=C:\Users\drwis\DBase`
+
+---
+
+*Jeśli czytasz to jako agent: odpal `python agent_boot.py` TERAZ, potem działaj.*

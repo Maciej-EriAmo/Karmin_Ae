@@ -22,8 +22,14 @@ Utrzymać **ciągłość między sesjami** Grok/CLI bez wklejania całej histori
 
 ```bash
 cd C:\Users\drwis\holonOs
-python holon_agent_memory.py handoff --project Karmazyn --no-digest
+python agent_boot.py
+# albo:
+python agent_boot.py --project Karmazyn
+# pipe JSON:
+python agent_boot.py --no-banner
 ```
+
+To jest **kanoniczna** ścieżka agenta (AGENTS.md §0). `handoff` zostaje w API.
 
 Pola kluczowe w JSON:
 
