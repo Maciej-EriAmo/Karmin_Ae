@@ -10,6 +10,7 @@ docs/
   ARCHITECTURE.md        ← moduły, przepływ, profile
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu
+  KARMIN_BRIDGE.md       ← Karmin_DB mirror (nie SQLite)
 AGENTS.md                ← skrót kontraktu (root, dla tooli)
 README.md                ← landing + szczery kanon
 holon_architecture.md    ← legacy pointer → docs/ARCHITECTURE.md

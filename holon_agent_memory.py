@@ -551,12 +551,71 @@ class AgentMemory:
 
         return run_golden_eval()
 
+    def karmin_sync(self, durable_only: bool = True) -> dict:
+        """Mirror fact/work → Karmin_DB (in-process). Wymaga DBase / cynober-db."""
+        from holon_backend_karmin import KarminMirror, karmin_available
+
+        if not karmin_available():
+            return {"ok": False, "error": "karmin_unavailable"}
+        if not self._started:
+            self.start()
+        m = KarminMirror.open()
+        res = m.sync_items(self.hm.store, durable_only=durable_only)
+        res["ok"] = True
+        res["mirror_stats"] = m.stats()
+        return res
+
+    def karmin_export(self, snapshot_path: str, *, sync_first: bool = True) -> dict:
+        """Backup durable → snapshot JSON (holon-karmin-snapshot-v1). Zastępuje plan SQLite."""
+        from holon_backend_karmin import KarminMirror, karmin_available
+
+        if not karmin_available():
+            return {"ok": False, "error": "karmin_unavailable"}
+        if not self._started:
+            self.start()
+        m = KarminMirror.open()
+        if sync_first:
+            m.sync_items(self.hm.store, durable_only=True)
+        path = m.export_snapshot(snapshot_path)
+        return {"ok": True, "path": str(path), "stats": m.stats()}
+
+    def karmin_import_merge(
+        self, snapshot_path: str, *, reembed: bool = True
+    ) -> dict:
+        """Wczytaj snapshot Karmin → scal do store Holona (fact/work)."""
+        from holon_backend_karmin import KarminMirror, karmin_available
+
+        if not karmin_available():
+            return {"ok": False, "error": "karmin_unavailable"}
+        if not self._started:
+            self.start()
+        m = KarminMirror.open()
+        n_eng = m.import_snapshot(snapshot_path)
+        rows = m.fetch_rows()
+        merged = 0
+        for row in rows:
+            content = (row.get("content") or "").strip()
+            if not content:
+                continue
+            kind = "fact"
+            if row.get("kind") == "work" or str(row.get("is_work")) in ("1", "True"):
+                kind = "work"
+            self.remember(content, kind=kind)
+            merged += 1
+        return {
+            "ok": True,
+            "engine_rows": n_eng,
+            "merged_to_holon": merged,
+            "reembed": reembed,
+        }
+
 
 def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
-        "llm-slot", "handoff", "set-work"])
+        "llm-slot", "handoff", "set-work",
+        "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
     p.add_argument("--fact", dest="as_fact", action="store_true")
@@ -571,6 +630,8 @@ def _main(argv: Optional[List[str]] = None) -> int:
                    help="handoff: bez pełnego digest w JSON")
     p.add_argument("--max-active", type=int, default=3,
                    help="set-work: ile work zostawić aktywnych")
+    p.add_argument("--snapshot", default="holon_karmin_snapshot.json",
+                   help="ścieżka snapshotu Karmin (export/import)")
     args = p.parse_args(argv)
 
     am = AgentMemory.open(memory_path=args.path)
@@ -668,6 +729,32 @@ def _main(argv: Optional[List[str]] = None) -> int:
         c = build_llm_client(backend="mock", quiet=True)
         print("mock_client:", type(c).__name__ if c else None)
         return 0
+
+    if args.cmd == "karmin-slot":
+        import json as _json
+        from holon_backend_karmin import describe_karmin_slot
+        print(_json.dumps(describe_karmin_slot(), indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "karmin-sync":
+        import json as _json
+        rep = am.karmin_sync()
+        print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
+
+    if args.cmd == "karmin-export":
+        import json as _json
+        rep = am.karmin_export(args.snapshot)
+        print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
+
+    if args.cmd == "karmin-import":
+        import json as _json
+        rep = am.karmin_import_merge(args.snapshot)
+        if rep.get("ok") and not args.no_save:
+            rep["holon_save"] = am.save()
+        print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
 
     if args.cmd == "remember":
         text = args.text.strip()

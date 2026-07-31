@@ -57,6 +57,7 @@ python -m unittest tests.test_holon_agent tests.test_memory_eval -q
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Warstwy systemu |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan rozwoju |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model |
+| [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | Backup/mirror w Karmin_DB (nie SQLite) |
 
 ## Profile Config
 

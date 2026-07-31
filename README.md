@@ -66,6 +66,7 @@ mem.save()
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektura zaawansowana |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model / Ollama / URL |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |
+| [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie SQLite**) |
 
 ---
 

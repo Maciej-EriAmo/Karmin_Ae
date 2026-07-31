@@ -21,15 +21,16 @@ Holon ma być **najlepszą lokalną pamięcią partnera SE** (Grok/CLI): trwał�
 
 ## Plan B — backlog (priorytet SE)
 
-| # | Deliverable | Po co agentowi |
+| # | Deliverable | Status / po co |
 |---|-------------|----------------|
-| B1 | `handoff --since 24h` — tylko delty | mniej tokenów przy długim store |
-| B2 | Lekki indeks lexical (inverted) przy store>500 | szybszy recall |
-| B3 | Opcjonalny SQLite backend za tym samym API | multi-session / backup |
-| B4 | Hook `on_remember` / file watch dla tooli zewnętrznych | integracja IDE |
-| B5 | CI: `python holon_agent_memory.py eval` na PR | nie psuć golden |
-| B6 | Golden ablation report (flat vs prism) 1 komenda | świadome HRR |
-| B7 | Eksport handoff → `.md` do wklejenia w inne tooli | Grok/Cursor bridge |
+| B1 | `handoff --since 24h` — tylko delty | 📋 mniej tokenów |
+| B2 | Lekki indeks lexical (inverted) przy store>500 | 📋 szybszy recall |
+| B3 | **Karmin_DB mirror** (**nie SQLite**) — `holon_backend_karmin` + CLI export/import | ✅ 2026-07-31 |
+| B4 | Hook `on_remember` / file watch dla tooli zewnętrznych | 📋 IDE |
+| B5 | CI: `python holon_agent_memory.py eval` na PR | 📋 |
+| B6 | Golden ablation report (flat vs prism) 1 komenda | 📋 |
+| B7 | Eksport handoff → `.md` | 📋 |
+| B3b | Karmin RPC / świat `se_memory` (Cynober server) | 📋 po B3 lokalnym |
 
 ## Plan C — research (nie blokuje SE)
 

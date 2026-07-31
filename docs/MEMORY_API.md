@@ -81,6 +81,18 @@ python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 python holon_agent_memory.py eval
 ```
 
+## Backend trwałości: Karmin_DB (nie SQLite)
+
+Plan B3: **własny Karmin_DB** zamiast SQLite — patrz [KARMIN_BRIDGE.md](KARMIN_BRIDGE.md).
+
+```bash
+python holon_agent_memory.py karmin-slot
+python holon_agent_memory.py karmin-sync
+python holon_agent_memory.py karmin-export --snapshot se.holon-karmin.json
+```
+
+Primary runtime: nadal `holon_memory.json`. Karmin = mirror + backup + most do DB_karmin.
+
 ## Granice (świadome)
 
 - Brak multi-writer / lock na JSON.  
