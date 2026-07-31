@@ -9,9 +9,12 @@ class Config:
     threshold:     float = 0.20
     lr:            float = 0.01
     alpha:         float = 0.05
-    top_n_recall:  int   = 2
+    top_n_recall:  int   = 5
     dim:           int   = 256
     time_dim:      int   = 8
+    # Hybryda recall: KuRz-cosine bywa ~0 — lexical token boost ratuje SE/CLI.
+    hybrid_lexical_weight: float = 0.18
+    hybrid_min_token_len:  int   = 3
 
     @property
     def total_dim(self) -> int:
@@ -23,6 +26,13 @@ class Config:
         [720.0, 540.0, 360.0, 240.0],
     ])
     store_decay_hours:    float = 336.0
+    # Trwałe typy (fact/work/insight/reminder): nie giną po store_decay_hours.
+    # Po długiej nieobecności age jest przycinany, żeby ranking recall nie
+    # karał ich jak martwych epizodów (agent CLI / partner SE).
+    durable_age_cap:      int   = 48
+    keep_facts_forever:   bool  = True
+    keep_work_forever:    bool  = True
+    work_decay_hours:     float = 2160.0   # ~90 dni, gdy keep_work_forever=False
     phi_min_norm:         float = 0.1
     phi_ortho_beta:       float = 0.05
     vacuum_age_tau:       float = 50.0

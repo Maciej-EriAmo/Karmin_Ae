@@ -1,0 +1,23 @@
+# Runtime / local state (not source of truth for git)
+holon_memory.json
+holon_memory.bak.json
+holon_memory.tmp
+holon_memory.rescue.json
+holon_memory_kurz.json
+*_kurz.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

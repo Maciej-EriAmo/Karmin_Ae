@@ -21,6 +21,10 @@ class HoloMem:
     FACT_PATTERNS: Tuple[str, ...] = (
         "mój ulubiony", "jestem", "mam na imię", "nazywam się",
         "lubię", "pracuję nad",
+        # Agent CLI / partner SE — jawne kotwice faktów
+        "zapamiętaj:", "fakt:", "ustalenie:", "preferencja:",
+        "użytkownik:", "partner:", "grok:", "agent:",
+        "zawsze ", "nigdy nie ", "konwencja:",
     )
     FOCUS_PATTERNS: Tuple[str, ...] = (
         "holon", "holomem", "eriamo", "kurz", "harmonic attention",
@@ -30,6 +34,10 @@ class HoloMem:
         "algorytm", "architektura", "moduł", "integracja",
         "trenuję", "fine-tuning", "embedding", "transformer",
         "naprawiam", "poprawka", "błąd w", "fix:",
+        # Praca kodowa z agentem
+        "pull request", " pr ", "commit", "diff", "refactor",
+        "test ", "pytest", "bug", "issue", "todo", "wip",
+        "holonos", "holography", "persistentmemory",
     )
 
     def __init__(self, embedder: Embedder, cfg: Config = None,
@@ -141,12 +149,23 @@ class HoloMem:
 
     # ── Recall ─────────────────────────────────────────────────────────────
 
-    def _recall(self, query_emb_timed: np.ndarray):
+    def _lexical_overlap(self, query_text: str, content: str) -> float:
+        """Udział tokenów zapytania obecnych w treści ∈ [0, 1]."""
+        min_len = int(getattr(self.cfg, "hybrid_min_token_len", 3))
+        q_tok = {t for t in query_text.lower().replace(":", " ").split()
+                 if len(t) >= min_len}
+        if not q_tok:
+            return 0.0
+        c_low = content.lower()
+        return sum(1 for t in q_tok if t in c_low) / len(q_tok)
+
+    def _recall(self, query_emb_timed: np.ndarray, query_text: str = ""):
         if not self.store:
             return
         scores = {}
         cdim   = self.cfg.dim
         q_time = query_emb_timed[cdim:]
+        lex_w  = float(getattr(self.cfg, "hybrid_lexical_weight", 0.18))
 
         for k in range(self.cfg.k):
             attractor = (0.6 * self.phi[2][k] +
@@ -159,11 +178,16 @@ class HoloMem:
                 time_sim    = (self._cosine_sim(emb[cdim:], q_time)
                                if len(q_time) > 0 else 1.0)
                 time_weight = np.exp(2.0 * (time_sim - 1.0))
-                score = max(0.0, s_att) * max(0.0, s_qry) * time_weight
+                # Suma zamiast iloczynu: przy słabym KuRz iloczyn → 0 i gubi fakty.
+                score = (0.55 * max(0.0, s_qry) + 0.45 * max(0.0, s_att)) * time_weight
+                if query_text:
+                    score += lex_w * self._lexical_overlap(query_text, item.content)
                 if item.is_fact:
                     score *= (1.0 + 0.2 / (1.0 + item.age * 0.1))
                 if item.is_work:
                     score *= (1.0 + 0.4 / (1.0 + item.age * 0.05))
+                if item.is_reminder:
+                    score *= 1.15
                 if id(item) not in scores or score > scores[id(item)][0]:
                     scores[id(item)] = (score, item, k)
 
@@ -180,12 +204,20 @@ class HoloMem:
         center_c = center[:cdim] / (np.linalg.norm(center[:cdim]) + 1e-8)
         q_time   = query_emb_timed[cdim:]
 
+        def _durable(item) -> bool:
+            return bool(item.is_insight or item.is_fact or item.is_work
+                        or item.is_reminder)
+
         if self.turns > 0 and self.turns % self.cfg.soft_vacuum_interval == 0:
             for item in self.store:
-                if not item.is_insight:
+                if not _durable(item):
                     item.relevance *= self.cfg.soft_decay_factor
 
         for item in self.store:
+            if _durable(item):
+                # Fakty/work: nie rozwadniaj relevance samym dopasowaniem do Φ.
+                item.relevance = max(0.5, item.relevance)
+                continue
             sem = self._cosine_sim(item.emb_content(cdim), center_c)
             item.relevance = 0.6 * sem + 0.4 * item.relevance
             item.relevance = max(0.05, item.relevance)
@@ -200,24 +232,28 @@ class HoloMem:
                 threshold *= (0.5 + 0.5 * session_age / self.cfg.vacuum_warmup_turns)
 
             def _score(item):
+                if _durable(item):
+                    return 1e6 + item.relevance
                 sim      = self._cosine_sim(item.emb_content(cdim), center_c)
                 time_sim = (self._cosine_sim(item.emb_time(cdim), q_time)
                             if len(q_time) > 0 else 1.0)
                 entropy  = 0.1 * (1.0 - abs(sim)) + max(0.0, 1.0 - time_sim)
                 fe       = -sim + entropy
-                base     = -(fe - 0.2 * item.relevance)
-                return base * 0.5 if item.is_insight else base
+                return -(fe - 0.2 * item.relevance)
 
             self.store = [
                 i for i in self.store
                 if ((i.age <= 1 and i.relevance > 0.2) or i.recalled
-                    or i.is_fact or i.is_work
+                    or _durable(i)
                     or i.relevance > 0.3 or _score(i) >= threshold)
             ]
             MAX_STORE = min(self.cfg.n * 6, hpm)
             if len(self.store) > MAX_STORE:
-                self.store.sort(key=_score, reverse=True)
-                self.store = self.store[:MAX_STORE]
+                durable = [i for i in self.store if _durable(i)]
+                rest = [i for i in self.store if not _durable(i)]
+                rest.sort(key=_score, reverse=True)
+                budget = max(0, MAX_STORE - len(durable))
+                self.store = durable + rest[:budget]
 
     # ── Update phi ─────────────────────────────────────────────────────────
 
@@ -456,22 +492,22 @@ class HoloMem:
         msgs = ([{"role": "system", "content": system_prompt}]
                 if system_prompt else [])
         mem_parts = []
-        emo_pl = {
-            "radosc": "radość/ekscytacja", "zaskoczenie": "zaskoczenie/ciekawość",
-            "strach": "niepokój/błąd",     "zlosc": "frustracja/złość",
-            "smutek": "smutek/melancholia", "neutral": "spokój/neutralność",
-        }.get(self.aii.emotion, self.aii.emotion)
-
-        mem_parts.append(
-            f"[SYSTEM - STAN WEWNĘTRZNY]\n"
-            f"Dominująca emocja układu: {emo_pl}\n"
-            f"Napięcie kognitywne (vacuum): {self.aii.vacuum_signal:+.2f} "
-            f"(ujemne=błąd/niepokój, dodatnie=zgodność/przyjemność)\n"
-            f"Focus na zadaniu: {'AKTYWNY' if self.aii.focus_active else 'BRAK'}\n"
-            f"ZASADA BEZWZGLĘDNA: Nie recytuj tego bloku. Zabrania się mówić, "
-            f"że nie masz uczuć. Zabarwiaj swoje odpowiedzi zgodnie z powyższym "
-            f"stanem afektywnym."
-        )
+        try:
+            from holon_prompts import format_internal_state
+            mem_parts.append(format_internal_state(self.aii))
+        except ImportError:
+            emo_pl = {
+                "radosc": "radość/ekscytacja", "zaskoczenie": "zaskoczenie/ciekawość",
+                "strach": "niepokój/błąd",     "zlosc": "frustracja/złość",
+                "smutek": "smutek/melancholia", "neutral": "spokój/neutralność",
+            }.get(self.aii.emotion, self.aii.emotion)
+            mem_parts.append(
+                f"[SYSTEM - STAN WEWNĘTRZNY]\n"
+                f"Dominująca emocja układu: {emo_pl}\n"
+                f"Napięcie kognitywne (vacuum): {self.aii.vacuum_signal:+.2f}\n"
+                f"Focus na zadaniu: {'AKTYWNY' if self.aii.focus_active else 'BRAK'}\n"
+                f"Nie recytuj tego bloku. Najpierw treść, barwa w tle."
+            )
 
         if window:
             ctx        = [i for i in window if i.content != user_message]
@@ -543,7 +579,7 @@ class HoloMem:
                 q_timed[:len(current_center)] - current_center, -0.5, 0.5)
             self.temporal_error = None
 
-        self._recall(q_timed)
+        self._recall(q_timed, query_text=user_message)
 
         skip = False
         if self.store:

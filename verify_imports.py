@@ -19,7 +19,9 @@ MODULES = [
     ("holon_llm",        ["requests"]),
     ("holon_watcher",    ["threading"]),
     ("holon_holomem",    ["holon_config", "holon_item", "holon_holography", "holon_embedder", "holon_aii", "holon_memory", "numpy"]),
-    ("holon_session",    ["holon_config", "holon_embedder", "holon_holomem", "holon_watcher", "holon_llm", "notes_manager", "requests"]),
+    ("holon_session",    ["holon_config", "holon_embedder", "holon_holomem", "holon_watcher", "holon_llm", "holon_prompts", "notes_manager", "requests"]),
+    ("holon_prompts",    []),
+    ("holon_agent_memory", ["holon_config", "holon_embedder", "holon_holomem", "holon_item", "numpy"]),
     ("prompt_scanner",   ["re", "json"]),
     ("web_extractor",    ["requests", "bs4"]), # bs4 z requirements.txt
     ("knowledge_store",  ["numpy"]),

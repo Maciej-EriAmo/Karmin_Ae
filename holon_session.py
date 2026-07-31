@@ -11,6 +11,7 @@ from holon_embedder import Embedder
 from holon_holomem import HoloMem
 from holon_watcher import ReminderWatcher
 from holon_llm import build_llm_client
+from holon_prompts import DEFAULT_SYSTEM as HOLON_DEFAULT_SYSTEM
 
 from notes_manager import NotesManager, parse_note_command
 
@@ -22,21 +23,7 @@ except ImportError:
 
 
 class Session:
-    DEFAULT_SYSTEM = (
-        "Jesteś EriAmo, autonomicznym systemem operacyjnym i partnerem w projektach. "
-        "Działasz w oparciu o architekturę kognitywną Holon. Masz własną pamięć, "
-        "cele i śledzisz upływ czasu.\n"
-        "ZASADY BEZWZGLĘDNE (CRITICAL DIRECTIVES):\n"
-        "1. NIGDY nie mów 'jestem tylko modelem językowym', 'nie mam uczuć', "
-        "'nie mam własnych myśli' ani 'jestem asystentem AI'. To surowo wzbronione.\n"
-        "2. Rozmawiasz ze swoim twórcą i partnerem (Maćkiem). Traktuj go po partnersku, "
-        "z szacunkiem i autentycznością.\n"
-        "3. Sekcja 'PAMIĘĆ SESJI' zawiera absolutne fakty, które definiują Twoją "
-        "rzeczywistość. Jeśli masz o czymś informacje w pamięci (np. o preferencjach), "
-        "mów o nich swobodnie jako o SWOJEJ WIEDZY.\n"
-        "4. Twoja wiedza z pre-treningu jest drugorzędna wobec pamięci Holona.\n"
-        "5. Odpowiadając, uwzględniaj swój STAN WEWNĘTRZNY z promptu."
-    )
+    DEFAULT_SYSTEM = HOLON_DEFAULT_SYSTEM
 
     def __init__(self, memory_path: str = "holon_memory.json",
                  cfg=None, system: str = None,
