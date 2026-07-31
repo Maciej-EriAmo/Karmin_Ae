@@ -1,23 +1,78 @@
-# Runtime / local state (not source of truth for git)
+# =============================================================================
+# Holon — wykluczenia: stan świadomości / pamięć / dane sesji (NIE publikować)
+# Kod źródłowy (*.py, docs, tests) — OK w repo.
+# =============================================================================
+
+# --- Pamięć trwała Holona (Φ, store, AII, embeddingi) ---
 holon_memory.json
+holon_memory.*.json
 holon_memory.bak.json
 holon_memory.tmp
+holon_memory.tmp.json
 holon_memory.rescue.json
-holon_memory_kurz.json
-*_kurz.json
+holon_memory*.json
+!holon_memory.example.json
 
-# Python
+# Słownik KuRz / embedding dict (tożsamość wektorowa)
+*_kurz.json
+holon_memory_kurz.json
+*.kurz.json
+
+# Kopie awaryjne / rotacja
+*.bak.json
+*.rescue.json
+*.tmp.json
+
+# --- Notatki, zadania, wiedza lokalna (treść użytkownika) ---
+notes/
+tasks/
+knowledge/
+*.md.local
+COLLAB.md
+AGENT_DIGEST*.md
+digest_*.txt
+
+# --- Sesje / logi / runtime agenta ---
+.session/
+.sessions/
+logs/
+*.log
+holon_session_state.json
+conversation_history.json
+aii_state.json
+phi_snapshot*.npy
+phi_snapshot*.json
+store_export*.json
+
+# --- Testy / collab (artefakty tymczasowe) ---
+_tmp_*.json
+holon_collab_*/
+.holon_test*/
+
+# --- Inne dane osobiste / światy ---
+karmazyn_data/
+identity.bin
+*.kafd
+
+# =============================================================================
+# Python / build / IDE
+# =============================================================================
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+.eggs/
 .venv/
 venv/
+env/
 dist/
 build/
-
-# Editor / OS
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .idea/
 .vscode/
 *.swp
+*~
 Thumbs.db
 .DS_Store

@@ -1,0 +1,17 @@
+{
+  "_comment": "Przykład struktury — NIE zawiera prawdziwej pamięci/świadomości. Skopiuj jako holon_memory.json tylko jeśli wiesz co robisz; normalnie powstaje przez Session/AgentMemory seed.",
+  "timestamp": 0,
+  "turns": 0,
+  "phi": [],
+  "phi_stability": [],
+  "phase_shifts": [0.0, 0.33, 0.66],
+  "h_coherence": null,
+  "aii": {
+    "emotion": "neutral",
+    "vacuum_signal": 0.0,
+    "focus": false
+  },
+  "W_time": null,
+  "W_gen": null,
+  "store": []
+}
