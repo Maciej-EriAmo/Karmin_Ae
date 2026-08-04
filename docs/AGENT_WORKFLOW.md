@@ -25,11 +25,17 @@ cd C:\Users\drwis\holonOs
 python agent_boot.py
 # albo:
 python agent_boot.py --project Karmazyn
+# re-boot / mało tokenów (B1 — tylko delty z okna):
+python agent_boot.py --since 24h --project Holon
+# czytelny Markdown (B7):
+python agent_boot.py --md --project Holon
+python agent_boot.py --md --out handoff.md --since 24h
 # pipe JSON:
 python agent_boot.py --no-banner
 ```
 
-To jest **kanoniczna** ścieżka agenta (AGENTS.md §0). `handoff` zostaje w API.
+To jest **kanoniczna** ścieżka agenta (AGENTS.md §0). `handoff` zostaje w API.  
+`--since 24h|7d|90m` → `mode=delta` (tylko wpisy z `created_at` w oknie).
 
 Pola kluczowe w JSON:
 
@@ -51,6 +57,14 @@ Pola kluczowe w JSON:
 
 - Upewnij się, że ostatnie `remember`/`set-work` poszły z zapisem (domyślnie tak).
 - Nie zostawiaj 10× work o tym samym — `set-work` demotuje nadmiar do fact.
+- Gdy store „szumi” (duplikaty factów, za dużo work): **krystalizacja ścieżek**
+
+```bash
+python holon_agent_memory.py crystallize --dry-run --project Holon   # podgląd
+python holon_agent_memory.py crystallize --project Holon             # merge + Φ + save
+```
+
+B9: `crystallize` nie zmyśla treści — scala near-dup, promuje stabilne klastry, demotuje nadmiar work, wzmacnia Φ.
 
 ## Prefiksy multi-projekt
 
@@ -79,4 +93,14 @@ Filtr: `--project Holon` | `--project Karmazyn` (aliasy w kodzie: slab, kentry �
 ```bash
 python holon_agent_memory.py eval
 # oczekuj: GOLDEN_EVAL: OK
+python holon_agent_memory.py ablation   # B6 flat vs prism
 ```
+
+## Inbox z IDE (B4)
+
+```bash
+# {"content":"[Holon] …", "kind":"fact"}
+python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl --once
+```
+
+Hook w kodzie: `am.on_remember(callback)`.

@@ -39,7 +39,7 @@ Holon **nie** trzymał klasycznej listy krawędzi `A→B`, ale **eksplorowalną 
 | hybrid recall (cosine + lex + fact/work) | `RECALL` |
 | Φ attractor w `_recall` | `FOCUS` / część rankingu |
 | `recall_at` + time_embed | `ALONG` |
-| `cluster_size`, semantic merge | przyszłe `MERGE` |
+| `cluster_size`, semantic merge | `crystallize` (B9) / przyszłe `MERGE` w Mneme-L |
 | prefiks `[Projekt]` | `PROJECT` |
 | pastness / `created_at` | każde `HIT.when` |
 

@@ -30,6 +30,10 @@ class Config:
     # Hybryda recall: KuRz-cosine bywa ~0 — lexical token boost ratuje SE/CLI.
     hybrid_lexical_weight: float = 0.18
     hybrid_min_token_len: int = 3
+    # B2: inverted lexical index — pruning kandydatów gdy store duży
+    lexical_index_min_store: int = 500
+    lexical_index_max_candidates: int = 256
+    lexical_index_force: bool = False  # True w testach / lab
 
     @property
     def total_dim(self) -> int:
@@ -74,6 +78,13 @@ class Config:
     soft_decay_factor: float = 0.96
     hard_prune_interval: int = 20
     hard_prune_store_max: int = 120
+    # ── krystalizacja (B9) — offline utrwalanie stałych ścieżek ──────────
+    # sim >= threshold → merge near-dup; cluster_size >= min → promote note→fact
+    crystallize_sim_threshold: float = 0.90
+    crystallize_promote_cluster_min: int = 2
+    crystallize_reinforce_top: int = 24
+    crystallize_relevance_floor: float = 1.4
+    crystallize_max_active_work: int = 3
     focus_boost: float = 1.25
     phase_shifts_learnable: bool = True
     conversation_history_size: int = 12
@@ -117,6 +128,12 @@ class Config:
             digest_timeline_items=8,
             hybrid_lexical_weight=0.22,
             top_n_recall=8,
+            lexical_index_min_store=500,
+            lexical_index_max_candidates=256,
+            # SE: trochę niższy próg merge (KuRz bywa sztywny), więcej ścieżek Φ
+            crystallize_sim_threshold=0.88,
+            crystallize_reinforce_top=32,
+            crystallize_max_active_work=3,
         )
         return replace(c, **overrides) if overrides else c
 

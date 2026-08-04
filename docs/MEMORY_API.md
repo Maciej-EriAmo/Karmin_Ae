@@ -13,10 +13,13 @@ mem: MemoryAPI = open_memory("holon_memory.json", profile="agent")
 | `remember(content, kind)` | `fact` \| `work` \| `note`; semantic merge / exact dedupe |
 | `recall(query, top_k)` | cosine + lexical boost + bonus flag |
 | `digest(..., project="")` | tekst SE z pastness + osią czasu |
-| `handoff(..., project="")` | JSON bootstrap (`holon-agent-handoff-v1`) |
+| `handoff(..., project="", since=None)` | JSON bootstrap; **B1** `since="24h"` → mode=delta |
+| `handoff_md(..., out_path=None)` | **B7** ten sam handoff jako Markdown (+ opcjonalny plik) |
 | `set_work(content, project, max_active)` | work + demotion starych work→fact |
+| `crystallize(project, dry_run=…)` | **B9** offline: merge near-dup, promote cluster→fact, demote work, wzmocnij Φ |
+| `on_remember(cb)` | **B4** hook po remember (add/merge) |
 | `save()` | JSON + KuRz dict |
-| `stats()` | turns, store, facts, work, profile, … |
+| `stats()` | turns, store, facts, work, profile, lex_index, … |
 
 Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 
@@ -41,13 +44,59 @@ Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 ## CLI
 
 ```bash
-python holon_agent_memory.py handoff [--project P] [--no-digest]
+python holon_agent_memory.py handoff [--project P] [--since 24h] [--no-digest]
+python holon_agent_memory.py handoff-md [--project P] [--since 24h] [--out handoff.md] [digest]
+python agent_boot.py [--project P] [--since 24h] [--full] [--md] [--out handoff.md]
 python holon_agent_memory.py digest [--project P]
 python holon_agent_memory.py remember "…" --fact|--work
 python holon_agent_memory.py set-work "…" --project P [--max-active 3]
+python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] [--max-active 3]
 python holon_agent_memory.py recall "…" [--project P]
+python holon_agent_memory.py ablation
+python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
 python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 ```
+
+### B2 — inverted lexical index
+
+Przy `store >= lexical_index_min_store` (agent: 500) lub `lexical_index_force=True`:
+recall scoringuje **kandydatów** z `holon_lexindex` (token → ids), nie cały store.
+Moduł: `holon_lexindex.py`. Stats: `stats()["lex_index"]`.
+
+### B4 — hooks + inbox
+
+```python
+am.on_remember(lambda item, kind, action, memory: ...)
+```
+
+Inbox JSONL (IDE / narzędzia zewnętrzne):
+
+```bash
+echo {"content":"[Holon] fact","kind":"fact"} >> remember_inbox.jsonl
+python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl --once
+```
+
+### B6 — ablacja flat vs prism
+
+```bash
+python holon_agent_memory.py ablation
+```
+
+Raport JSON: `profiles.prism` / `profiles.flat` (use_prism, recall hits, ms).
+
+### Krystalizacja (B9)
+
+**Cel:** utrwalenie **stałych ścieżek** pamięci SE (nie inventowanie treści).
+
+| Krok | Efekt |
+|------|--------|
+| Merge near-dup | cosine + lexical ≥ próg → jedna ścieżka, `cluster_size↑`, `created_at` = początek |
+| Promote | epizod z `cluster_size ≥ min` → `fact` |
+| Demote work | nadmiar work → fact (jak `set-work`) |
+| Φ reinforce | `_update_phi` na top durable + floor relevance |
+
+Profil `Config.agent()`: `crystallize_sim_threshold=0.88`, `crystallize_reinforce_top=32`.  
+CLI domyślnie **zapisuje** po passie; `--dry-run` tylko raport.
 
 ## Handoff schema (v1)
 
@@ -56,15 +105,29 @@ python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
   "protocol": "holon-agent-handoff-v1",
   "profile": "agent",
   "project_filter": "Karmazyn",
+  "mode": "full | delta",
   "stats": { "turns": 0, "store": 0, "delta_hours": 0.0, "facts": 0, "work": 0 },
   "wake": "…",
   "active_work": [ { "when": "…", "content": "…", "flags": {} } ],
   "key_facts": [ … ],
+  "since": { "raw": "24h", "hours": 24, "cutoff": 0, "work_in_window": 0, "facts_in_window": 0 },
   "agent_protocol": [ "1. …", "2. …" ],
   "paths": { "memory": "…", "docs": "docs/" },
-  "digest": "opcjonalnie pełny tekst"
+  "digest": "opcjonalnie pełny tekst lub DIGEST (DELTA)"
 }
 ```
+
+### B1 — delty (`--since`)
+
+| Forma | Godziny |
+|-------|---------|
+| `24h` / `12` | 24 / 12 |
+| `7d` | 168 |
+| `90m` | 1.5 |
+| `3600s` | 1 |
+
+Filtr: `created_at >= now - since`. Bez starych factów/work poza oknem.  
+Start dnia: pełny boot; **re-boot / mid-session**: `--since 24h`.
 
 ## Ewal
 
@@ -73,8 +136,9 @@ python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 - profile agent vs chat  
 - fact/work po ~200d, ephemeral znika  
 - recall  
-- handoff protocol  
+- handoff protocol + B1 `--since` delta + B7 markdown  
 - set_work demotion  
+- crystallize (dry-run, merge/promote/demote, Φ)  
 - LLM mock + local factory slot  
 
 ```bash

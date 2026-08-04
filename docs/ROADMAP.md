@@ -23,21 +23,30 @@ Holon ma być **najlepszą lokalną pamięcią partnera SE** (Grok/CLI): trwał�
 
 | # | Deliverable | Status / po co |
 |---|-------------|----------------|
-| B1 | `handoff --since 24h` — tylko delty | 📋 mniej tokenów |
-| B2 | Lekki indeks lexical (inverted) przy store>500 | 📋 szybszy recall |
+| B1 | `handoff --since 24h` — tylko delty | ✅ 2026-08 (mniej tokenów) |
+| B2 | Lekki indeks lexical (inverted) przy store>500 | ✅ 2026-08 (`holon_lexindex`) |
 | B3 | **Karmin_DB mirror** (**nie SQLite**) — `holon_backend_karmin` + CLI export/import | ✅ 2026-07-31 |
-| B4 | Hook `on_remember` / file watch dla tooli zewnętrznych | 📋 IDE |
-| B5 | CI: `python holon_agent_memory.py eval` na PR | 📋 |
-| B6 | Golden ablation report (flat vs prism) 1 komenda | 📋 |
-| B7 | Eksport handoff → `.md` | 📋 |
+| B4 | Hook `on_remember` / file watch dla tooli zewnętrznych | ✅ 2026-08 (hooks + `watch-remember`) |
+| B5 | CI: `python holon_agent_memory.py eval` na PR | ✅ 2026-08 (`.github/workflows/holon-eval.yml`) |
+| B6 | Golden ablation report (flat vs prism) 1 komenda | ✅ 2026-08 (`ablation`) |
+| B7 | Eksport handoff → `.md` | ✅ 2026-08 (`handoff-md` / `agent_boot --md`) |
 | B3b | Karmin RPC / świat `se_memory` (Cynober server) | 📋 po B3 lokalnym |
 | B8 | **Mneme** — meta-język + jawny graf SE (`docs/MNEME.md`, `holon_mneme.py`) | ✅ design+M1–M3 |
+| B9 | **Krystalizacja** — offline utrwalanie stałych ścieżek (`crystallize`) | ✅ v1 2026-08 |
+
+### Plan B — domknięcie (2026-08)
+
+Surface SE pod Grok/CLI: **B1–B9** (bez B3b).  
+Start: `agent_boot` · delty · md · crystallize · lex index · hooks/inbox · CI · ablation · Mneme · Karmin mirror.
+
+Otwarte w Plan B: tylko **B3b** (Karmin RPC / `se_memory`).
 
 ## Plan C — research (nie blokuje SE)
 
-- Ablacje HRR / Φ w paper-style  
+- Ablacje HRR / Φ w paper-style (smoke B6 już w CLI)  
 - HSS / LSM — osobny tor `security/`  
 - Chat UX EriAmo — poza MemoryAPI  
+- Mneme M4–M5 (auto-hub, prompt-only)
 
 ## Zasady rozwoju
 

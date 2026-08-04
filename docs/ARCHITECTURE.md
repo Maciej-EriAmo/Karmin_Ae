@@ -15,6 +15,7 @@
 ├────────────────────────────────────────────────────────────┤
 │  Cognition engine                                           │
 │   HoloMem: encode, recall window, vacuum, Φ update, AII     │
+│   Agent: crystallize (B9) — offline stałe ścieżki store/Φ   │
 │   Prompts: pastness, temporal block, internal state         │
 ├────────────────────────────────────────────────────────────┤
 │  Representation (optional sophistication)                   │
@@ -38,7 +39,10 @@
 |------|------|
 | `holon_memory_api.py` | Protokół + `open_memory` |
 | `holon_agent_memory.py` | Agent surface + CLI |
-| `holon_memory_eval.py` | Golden eval |
+| `holon_memory_eval.py` | Golden eval + **B6** `run_ablation_report` |
+| `holon_lexindex.py` | **B2** inverted lexical index |
+| `holon_remember_watch.py` | **B4** JSONL inbox watch |
+| `.github/workflows/holon-eval.yml` | **B5** CI: `eval` + unittest na PR |
 | `holon_config.py` | Profile chat/agent/flat + LLM fields |
 | `holon_holomem.py` | Silnik tur / vacuum / inject |
 | `holon_memory.py` | Load/save, durable filter |

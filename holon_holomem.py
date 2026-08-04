@@ -169,6 +169,27 @@ class HoloMem:
         c_low = content.lower()
         return sum(1 for t in q_tok if t in c_low) / len(q_tok)
 
+    def _recall_item_pool(self, query_text: str = ""):
+        """B2: pełny store lub kandydaci z ``lex_index`` gdy store duży."""
+        store = self.store
+        if not store:
+            return store
+        force = bool(getattr(self.cfg, "lexical_index_force", False))
+        thr = int(getattr(self.cfg, "lexical_index_min_store", 500))
+        if not force and len(store) < thr:
+            return store
+        idx = getattr(self, "lex_index", None)
+        if idx is None or not query_text:
+            return store
+        max_c = int(getattr(self.cfg, "lexical_index_max_candidates", 256))
+        try:
+            idx.ensure(store)
+            return idx.candidates(
+                query_text, store, always_durable=True, max_candidates=max_c
+            )
+        except Exception:
+            return store
+
     def _recall(self, query_emb_timed: np.ndarray, query_text: str = ""):
         if not self.store:
             return
@@ -176,12 +197,13 @@ class HoloMem:
         cdim   = self.cfg.dim
         q_time = query_emb_timed[cdim:]
         lex_w  = float(getattr(self.cfg, "hybrid_lexical_weight", 0.18))
+        pool   = self._recall_item_pool(query_text)
 
         for k in range(self.cfg.k):
             attractor = (0.6 * self.phi[2][k] +
                          0.3 * self.phi[1][k] +
                          0.1 * self.phi[0][k])
-            for item in self.store:
+            for item in pool:
                 emb   = item.emb_np()
                 s_att = self._csim(emb[:cdim], attractor[:cdim])
                 s_qry = self._csim(emb[:cdim], query_emb_timed[:cdim])

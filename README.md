@@ -38,16 +38,22 @@ python holon_agent_memory.py seed          # raz / odswiezenie kotwic
 python -m holon_mneme --repl               # meta-jezyk + graf
 python holon_agent_memory.py remember --fact "[Holon] ..."
 python holon_agent_memory.py set-work "..." --project Karmazyn
+python holon_agent_memory.py crystallize --project Holon   # B9 sciezki
+python agent_boot.py --since 24h                             # B1 delty
+python agent_boot.py --md --out handoff.md                   # B7 markdown
 python holon_agent_memory.py eval
+python holon_agent_memory.py ablation                       # B6 flat vs prism
 ```
 
 ```python
 from holon_memory_api import open_memory
 
 mem = open_memory()  # Config.agent()
-print(mem.handoff(project="Karmazyn", include_digest=False))
+print(mem.handoff(project="Karmazyn", include_digest=False, since="24h"))
 mem.remember("[Karmazyn] ...", kind="fact")
 mem.set_work("...", project="Karmazyn")
+mem.on_remember(lambda item, **kw: None)  # B4
+mem.crystallize(project="Holon")          # B9
 mem.save()
 ```
 
@@ -108,6 +114,8 @@ Osobny tor: paper `HSS_Paper_v2.5.0.md` (+ PL), kod `security/holo/`, demo `hss_
 | Źródło | Znaczenie |
 |--------|-----------|
 | `python holon_agent_memory.py eval` | **Kanoniczna** reggresja pamięci (golden) |
+| `python holon_agent_memory.py ablation` | B6: flat vs prism (smoke) |
+| CI `.github/workflows/holon-eval.yml` | B5: eval + unittest na PR |
 | Wewnętrzne demo recall / HSS 20/20 | Lab / paper — nie public leaderboard vs Mem0 |
 
 ---

@@ -20,6 +20,13 @@ python agent_boot.py --project Karmazyn
 python agent_boot.py --project Holon
 ```
 
+Re-boot / mniej tokenów (**B1** — tylko delty):
+
+```bat
+python agent_boot.py --since 24h
+python agent_boot.py --since 24h --project Holon
+```
+
 Tylko JSON (pipe):
 
 ```bat
@@ -39,10 +46,14 @@ Nie zmyślaj „stanu projektu” z powietrza.
 |-----------|--------|---------|
 | **agent_boot** | bootstrap JSON | `python agent_boot.py` |
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
+| **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |
 | **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |
 | **remember / set-work** | zapis fact/work | `python holon_agent_memory.py remember --fact "…"` |
+| **crystallize** | B9 — stałe ścieżki (merge/Φ) | `python holon_agent_memory.py crystallize [--project Holon]` |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
 | **eval** | reggresja | `python holon_agent_memory.py eval` |
+| **ablation** | B6 flat vs prism | `python holon_agent_memory.py ablation` |
+| **watch-remember** | B4 inbox JSONL | `python holon_agent_memory.py watch-remember --once` |
 
 Docs (głębiej):
 
@@ -60,6 +71,7 @@ boot → (opcjonalnie) Mneme RECALL/NEAR/WALK
      → praca w kodzie (Holon lub KarmazynOs — nie mylić)
      → HOLD fact / remember --fact   (trwałe)
      → set-work / HOLD work          (aktywny wątek)
+     → crystallize [--project P]     (koniec / gdy store szumi)
 ```
 
 ### Mneme (przykłady)

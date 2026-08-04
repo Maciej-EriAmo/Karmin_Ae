@@ -21,10 +21,30 @@ holon_architecture.md    ← legacy pointer → docs/ARCHITECTURE.md
 
 ```bash
 pip install -r requirements.txt
+python agent_boot.py
 python holon_agent_memory.py seed
 python holon_agent_memory.py handoff --no-digest
+python holon_agent_memory.py handoff --since 24h          # B1 delty
+python holon_agent_memory.py handoff-md --out handoff.md  # B7
+python holon_agent_memory.py crystallize --dry-run        # B9
+python holon_agent_memory.py ablation                     # B6
 python holon_agent_memory.py eval
 ```
+
+## Plan B (SE surface) — status
+
+| # | Temat | Doc / komenda |
+|---|--------|----------------|
+| B1 | handoff delty | `--since 24h` · MEMORY_API |
+| B2 | lexical index | `holon_lexindex.py` · store≥500 |
+| B3 | Karmin mirror | KARMIN_BRIDGE |
+| B4 | hooks + inbox | `on_remember` · `watch-remember` |
+| B5 | CI eval | `.github/workflows/holon-eval.yml` |
+| B6 | ablation | `ablation` |
+| B7 | handoff → md | `handoff-md` · `agent_boot --md` |
+| B8 | Mneme | MNEME.md |
+| B9 | krystalizacja | `crystallize` |
+| B3b | Karmin RPC | 📋 backlog |
 
 ## Dwa produkty w jednym repo
 

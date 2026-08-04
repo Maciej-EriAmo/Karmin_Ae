@@ -45,6 +45,21 @@ def main(argv=None) -> int:
         help="dołącz pełny digest w handoff (więcej tokenów)",
     )
     p.add_argument(
+        "--since",
+        default="",
+        help="B1: tylko delty w oknie (24h | 7d | 90m | godziny) — mniej tokenów",
+    )
+    p.add_argument(
+        "--md",
+        action="store_true",
+        help="B7: wypisz handoff jako Markdown zamiast JSON",
+    )
+    p.add_argument(
+        "--out",
+        default="",
+        help="B7: zapisz Markdown do pliku (implikuje --md)",
+    )
+    p.add_argument(
         "--path",
         default=str(ROOT / "holon_memory.json"),
         help="ścieżka holon_memory.json",
@@ -52,7 +67,7 @@ def main(argv=None) -> int:
     p.add_argument(
         "--no-banner",
         action="store_true",
-        help="tylko JSON handoff (pipe-friendly)",
+        help="tylko JSON/MD handoff (pipe-friendly)",
     )
     args = p.parse_args(argv)
 
@@ -60,12 +75,34 @@ def main(argv=None) -> int:
 
     mem_path = args.path
     am = AgentMemory.open(memory_path=mem_path, profile="agent")
-    handoff = am.handoff(
-        project=args.project,
-        include_digest=bool(args.full),
-        max_work=5,
-        max_facts=10,
-    )
+    want_md = bool(args.md or args.out)
+    try:
+        if want_md:
+            md = am.handoff_md(
+                project=args.project,
+                include_digest=bool(args.full),
+                max_work=5,
+                max_facts=10,
+                since=args.since or None,
+                out_path=args.out or None,
+            )
+            if args.out and not args.no_banner:
+                print(f"agent_boot: wrote markdown → {args.out} ({len(md)} chars)")
+            elif args.out and args.no_banner:
+                pass
+            else:
+                sys.stdout.write(md if md.endswith("\n") else md + "\n")
+            return 0
+        handoff = am.handoff(
+            project=args.project,
+            include_digest=bool(args.full),
+            max_work=5,
+            max_facts=10,
+            since=args.since or None,
+        )
+    except ValueError as e:
+        print(f"agent_boot: {e}", file=sys.stderr)
+        return 2
 
     # ścieżka „dla mnie” — bez zgadywania
     handoff["agent_boot"] = {
@@ -82,23 +119,31 @@ def main(argv=None) -> int:
         "commands": {
             "boot": f'python "{ROOT / "agent_boot.py"}"'
             + (f" --project {args.project}" if args.project else ""),
+            "boot_delta": f'python "{ROOT / "agent_boot.py"}" --since 24h'
+            + (f" --project {args.project}" if args.project else ""),
+            "boot_md": f'python "{ROOT / "agent_boot.py"}" --md'
+            + (f" --project {args.project}" if args.project else ""),
             "boot_full": f'python "{ROOT / "agent_boot.py"}" --full'
             + (f" --project {args.project}" if args.project else ""),
             "mneme_repl": f'python -m holon_mneme --path "{mem_path}" --repl',
             "mneme_recall": f'python -m holon_mneme --path "{mem_path}" "RECALL \\"…\\" TOP 5"',
             "remember_fact": f'python holon_agent_memory.py --path "{mem_path}" remember --fact "…"',
             "set_work": f'python holon_agent_memory.py --path "{mem_path}" set-work "…" --project {args.project or "Holon"}',
+            "crystallize": f'python holon_agent_memory.py --path "{mem_path}" crystallize'
+            + (f" --project {args.project}" if args.project else ""),
             "eval": f'python holon_agent_memory.py --path "{mem_path}" eval',
             "karmin_export": f'python holon_agent_memory.py --path "{mem_path}" karmin-export',
         },
         "protocol_short": [
             "1. Zawsze start: python agent_boot.py [--project X]",
-            "2. Eksploracja: python -m holon_mneme (RECALL/NEAR/WALK/HOLD)",
-            "3. Trwałe ustalenie: remember --fact lub HOLD fact …",
-            "4. Aktywny wątek: set-work / HOLD work … PROJECT …",
-            "5. Nie resetuj holon_memory.json; nie myl z KarmazynOs kodem",
-            "6. KarmazynOs runtime: C:\\Users\\drwis\\KarmazynOs",
-            "7. Karmin_DB skarbiec: C:\\Users\\drwis\\DBase (mirror opcjonalny)",
+            "2. Re-boot / mało tokenów: --since 24h (B1 delty)",
+            "3. Eksploracja: python -m holon_mneme (RECALL/NEAR/WALK/HOLD)",
+            "4. Trwałe ustalenie: remember --fact lub HOLD fact …",
+            "5. Aktywny wątek: set-work / HOLD work … PROJECT …",
+            "6. Store szumi: crystallize [--project X] (B9 stałe ścieżki)",
+            "7. Nie resetuj holon_memory.json; nie myl z KarmazynOs kodem",
+            "8. KarmazynOs runtime: C:\\Users\\drwis\\KarmazynOs",
+            "9. Karmin_DB skarbiec: C:\\Users\\drwis\\DBase (mirror opcjonalny)",
         ],
     }
 

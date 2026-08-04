@@ -43,11 +43,35 @@ class MemoryAPI(Protocol):
         max_work: int = 4,
         max_facts: int = 8,
         include_digest: bool = True,
+        since=None,
     ) -> dict: ...
+
+    def handoff_md(
+        self,
+        project: str = "",
+        max_work: int = 4,
+        max_facts: int = 8,
+        include_digest: bool = False,
+        since=None,
+        out_path: Optional[str] = None,
+    ) -> str: ...
 
     def set_work(
         self, content: str, project: str = "", max_active: int = 3
     ) -> Item: ...
+
+    def crystallize(
+        self,
+        project: str = "",
+        *,
+        dry_run: bool = False,
+        sim_threshold: Optional[float] = None,
+        promote_cluster_min: Optional[int] = None,
+        max_active_work: Optional[int] = None,
+        reinforce_phi: bool = True,
+    ) -> dict: ...
+
+    def on_remember(self, callback=None): ...
 
 
 def open_memory(

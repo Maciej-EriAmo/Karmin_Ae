@@ -12,6 +12,7 @@ Kontrakt: ``MemoryAPI`` (remember / recall / digest / save) — patrz holon_memo
   python holon_agent_memory.py recall "query"
   python holon_agent_memory.py seed
   python holon_agent_memory.py stats
+  python holon_agent_memory.py crystallize [--dry-run] [--project P]
   python holon_agent_memory.py eval
 
 Użycie z kodu:
@@ -28,7 +29,7 @@ import argparse
 import sys
 import time
 import uuid
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -36,6 +37,7 @@ from holon_config import Config
 from holon_embedder import Embedder
 from holon_holomem import HoloMem
 from holon_item import Item
+from holon_lexindex import LexicalIndex
 
 
 # Domyślne kotwice pod pracę Grok Build — seed idempotentny po treści.
@@ -79,6 +81,12 @@ class AgentMemory:
         self.hm = holomem
         self.memory_path = memory_path
         self._started = False
+        # B2 lexical index
+        min_tok = int(getattr(holomem.cfg, "hybrid_min_token_len", 3))
+        self.lex_index = LexicalIndex(min_token_len=min_tok)
+        holomem.lex_index = self.lex_index  # type: ignore[attr-defined]
+        # B4 on_remember hooks: cb(item, *, kind, action, memory)
+        self._remember_hooks: List[Callable] = []
 
     @classmethod
     def open(
@@ -106,7 +114,66 @@ class AgentMemory:
     def start(self) -> dict:
         res = self.hm.start_session()
         self._started = True
+        try:
+            self.lex_index.rebuild(self.hm.store)
+        except Exception:
+            self.lex_index.mark_dirty()
         return res
+
+    # ── B4 hooks ──────────────────────────────────────────────────────────
+
+    def on_remember(self, callback: Optional[Callable] = None):
+        """Zarejestruj hook po ``remember`` (B4).
+
+        Użycie::
+
+            am.on_remember(lambda item, **kw: print(item.content))
+
+            @am.on_remember
+            def _log(item, **kw): ...
+        """
+        if callback is None:
+            def _decorator(fn: Callable) -> Callable:
+                self._remember_hooks.append(fn)
+                return fn
+            return _decorator
+        self._remember_hooks.append(callback)
+        return callback
+
+    def clear_remember_hooks(self) -> None:
+        self._remember_hooks.clear()
+
+    def _fire_remember(
+        self, item: Item, *, kind: str, action: str
+    ) -> None:
+        for h in list(self._remember_hooks):
+            try:
+                h(item, kind=kind, action=action, memory=self)
+            except Exception:
+                pass
+
+    def _lex_should_prune(self) -> bool:
+        cfg = self.hm.cfg
+        n = len(self.hm.store)
+        force = bool(getattr(cfg, "lexical_index_force", False))
+        thr = int(getattr(cfg, "lexical_index_min_store", 500))
+        return force or n >= thr
+
+    def _recall_pool(self, query: str) -> List[Item]:
+        """B2: pełny store albo kandydaci z inverted index."""
+        store = self.hm.store
+        if not store:
+            return []
+        if not self._lex_should_prune():
+            return store
+        max_c = int(getattr(self.hm.cfg, "lexical_index_max_candidates", 256))
+        try:
+            self.lex_index.ensure(store)
+            return self.lex_index.candidates(
+                query, store, always_durable=True, max_candidates=max_c
+            )
+        except Exception:
+            return store
 
     # ── Zapis / odczyt ────────────────────────────────────────────────────
 
@@ -145,6 +212,11 @@ class AgentMemory:
             best.is_work = best.is_work or is_work
             best.relevance = max(best.relevance, relevance)
             best.age = 0
+            try:
+                self.lex_index.update_item(best)
+            except Exception:
+                self.lex_index.mark_dirty()
+            self._fire_remember(best, kind=kind, action="merge")
             return best
 
         item = Item(
@@ -162,18 +234,27 @@ class AgentMemory:
             self.hm._update_phi([item])
         except Exception:
             pass
+        try:
+            self.lex_index.add_item(item)
+        except Exception:
+            self.lex_index.mark_dirty()
+        self._fire_remember(item, kind=kind, action="add")
         return item
 
     def recall(self, query: str, top_k: int = 8) -> List[Tuple[float, Item]]:
-        """Hybryda zgodna z HoloMem: cosine + lexical (cfg.hybrid_lexical_weight)."""
+        """Hybryda zgodna z HoloMem: cosine + lexical (cfg.hybrid_lexical_weight).
+
+        B2: przy dużym store scoring na kandydatach z inverted index.
+        """
         if not self._started:
             self.start()
         q = self.hm.embedder.encode(query, timestamp=time.time())
         cdim = self.hm.cfg.dim
         q_c = q[:cdim]
         lex_w = float(getattr(self.hm.cfg, "hybrid_lexical_weight", 0.18))
+        pool = self._recall_pool(query)
         scored: List[Tuple[float, Item]] = []
-        for item in self.hm.store:
+        for item in pool:
             e = item.emb_content(cdim)
             s = self.hm._cosine_sim(e, q_c)
             s += lex_w * self.hm._lexical_overlap(query, item.content)
@@ -354,6 +435,12 @@ class AgentMemory:
             1 for i in self.hm.store
             if not i.is_fact and not i.is_work and not i.is_insight
             and not i.is_reminder)
+        try:
+            base["lex_index"] = self.lex_index.stats()
+            base["lex_index_active"] = self._lex_should_prune()
+        except Exception:
+            pass
+        base["remember_hooks"] = len(self._remember_hooks)
         return base
 
     def set_work(self, content: str, project: str = "",
@@ -380,21 +467,327 @@ class AgentMemory:
             w.is_fact = True  # historia projektu zostaje durable
         return item
 
-    def handoff(self, project: str = "", max_work: int = 4,
-                max_facts: int = 8, include_digest: bool = True) -> dict:
+    # ── Krystalizacja (B9) — utrwalanie stałych ścieżek pamięci ──────────
+
+    @staticmethod
+    def _is_durable_item(item: Item) -> bool:
+        return bool(
+            item.is_fact or item.is_work or item.is_insight or item.is_reminder
+        )
+
+    def _path_similarity(self, a: Item, b: Item) -> float:
+        """Podobieństwo ścieżek: cosine content + lexical (pod SE / KuRz)."""
+        cdim = self.hm.cfg.dim
+        ea, eb = a.emb_content(cdim), b.emb_content(cdim)
+        s = float(self.hm._cosine_sim(ea, eb))
+        lex_w = float(getattr(self.hm.cfg, "hybrid_lexical_weight", 0.18))
+        s += lex_w * self.hm._lexical_overlap(a.content or "", b.content or "")
+        ca = (a.content or "").strip().lower()
+        cb = (b.content or "").strip().lower()
+        if ca and cb and (ca == cb or ca[:80] == cb[:80]):
+            s = max(s, 0.99)
+        return s
+
+    def _crystal_survivor(self, a: Item, b: Item) -> Tuple[Item, Item]:
+        """Wybierz ocalałą ścieżkę (survivor, donor). Preferuj durable / cluster / treść."""
+        def score(it: Item) -> tuple:
+            return (
+                1 if self._is_durable_item(it) else 0,
+                1 if it.is_fact else 0,
+                int(it.cluster_size or 1),
+                float(it.relevance or 0),
+                len(it.content or ""),
+            )
+        if score(a) >= score(b):
+            return a, b
+        return b, a
+
+    def _crystal_merge_into(self, survivor: Item, donor: Item) -> None:
+        """Scal donor → survivor: emb, flagi, cluster; created_at = początek ścieżki."""
+        cdim = self.hm.cfg.dim
+        cs = max(1, int(survivor.cluster_size or 1))
+        cd = max(1, int(donor.cluster_size or 1))
+        s_c = survivor.emb_content(cdim)
+        d_c = donor.emb_content(cdim)
+        # czas z ocalałej (świeższy tor rankingu), treść dłuższa / bogatsza
+        s_t = survivor.emb_time(cdim) if len(survivor.embedding or []) > cdim else None
+        merged_c = (cs * s_c + cd * d_c) / float(cs + cd)
+        if s_t is not None and len(s_t):
+            merged = np.concatenate([merged_c, s_t])
+        else:
+            merged = merged_c
+        nrm = float(np.linalg.norm(merged)) + 1e-8
+        survivor.embedding = (merged / nrm).astype(np.float32).tolist()
+        survivor.cluster_size = cs + cd
+        survivor._norm = -1.0
+        # początek ścieżki = najstarszy created_at (pastness)
+        ta = float(survivor.created_at or 0) or time.time()
+        tb = float(donor.created_at or 0) or time.time()
+        survivor.created_at = min(ta, tb)
+        survivor.relevance = max(
+            float(survivor.relevance or 0),
+            float(donor.relevance or 0),
+            float(getattr(self.hm.cfg, "crystallize_relevance_floor", 1.4)),
+        )
+        survivor.is_fact = bool(survivor.is_fact or donor.is_fact)
+        survivor.is_work = bool(survivor.is_work or donor.is_work)
+        survivor.is_insight = bool(survivor.is_insight or donor.is_insight)
+        survivor.is_reminder = bool(survivor.is_reminder or donor.is_reminder)
+        # po merge ścieżka jest wiedzą, nie samym work-spamem gdy donor był fact
+        if survivor.is_fact and survivor.is_work and not donor.is_work:
+            # zachowaj work tylko jeśli survivor był work
+            pass
+        sc, dc = (survivor.content or ""), (donor.content or "")
+        if len(dc) > len(sc):
+            survivor.content = dc[:800]
+        survivor.age = 0
+        survivor.relevance = min(5.0, float(survivor.relevance) + 0.15)
+
+    def crystallize(
+        self,
+        project: str = "",
+        *,
+        dry_run: bool = False,
+        sim_threshold: Optional[float] = None,
+        promote_cluster_min: Optional[int] = None,
+        max_active_work: Optional[int] = None,
+        reinforce_phi: bool = True,
+    ) -> dict:
+        """Offline: utrwal stałe ścieżki pamięci (B9).
+
+        1. Merge near-duplikatów (cosine+lex) → jedna ścieżka, większy cluster_size
+        2. Promote epizodów z dużym cluster_size → fact
+        3. Demote nadmiaru work → fact (higiena SE, jak set-work)
+        4. Podbij relevance durable + wzmocnij Φ wokół ocalałych ścieżek
+
+        Zwraca raport JSON-friendly. ``dry_run`` nie mutuje store.
+        Domyślnie **nie** zapisuje — wołający robi ``save()`` (CLI tak).
+        """
+        if not self._started:
+            self.start()
+        cfg = self.hm.cfg
+        thr = float(
+            sim_threshold
+            if sim_threshold is not None
+            else getattr(cfg, "crystallize_sim_threshold", 0.90)
+        )
+        prom_min = int(
+            promote_cluster_min
+            if promote_cluster_min is not None
+            else getattr(cfg, "crystallize_promote_cluster_min", 2)
+        )
+        max_w = int(
+            max_active_work
+            if max_active_work is not None
+            else getattr(cfg, "crystallize_max_active_work", 3)
+        )
+        floor = float(getattr(cfg, "crystallize_relevance_floor", 1.4))
+        reinf_top = int(getattr(cfg, "crystallize_reinforce_top", 24))
+
+        before = len(self.hm.store)
+        candidates = [
+            i for i in self.hm.store
+            if self._match_project(i.content, project)
+        ]
+        # Greedy merge: sortuj durable/cluster malejąco, scal w lewo
+        order = sorted(
+            candidates,
+            key=lambda x: (
+                1 if self._is_durable_item(x) else 0,
+                int(x.cluster_size or 1),
+                float(x.relevance or 0),
+            ),
+            reverse=True,
+        )
+        alive: List[Item] = list(order)
+        merged_pairs: List[dict] = []
+        removed_ids: set = set()
+
+        i = 0
+        while i < len(alive):
+            a = alive[i]
+            if a.id in removed_ids:
+                i += 1
+                continue
+            j = i + 1
+            while j < len(alive):
+                b = alive[j]
+                if b.id in removed_ids:
+                    j += 1
+                    continue
+                sim = self._path_similarity(a, b)
+                if sim < thr:
+                    j += 1
+                    continue
+                surv, don = self._crystal_survivor(a, b)
+                if not dry_run:
+                    self._crystal_merge_into(surv, don)
+                merged_pairs.append({
+                    "sim": round(sim, 4),
+                    "kept": (surv.content or "")[:120],
+                    "dropped": (don.content or "")[:120],
+                    "cluster_after": int(surv.cluster_size or 1),
+                })
+                removed_ids.add(don.id)
+                # kontynuuj z survivorem w pozycji a
+                if surv is b:
+                    alive[i] = surv
+                    a = surv
+                j += 1
+            i += 1
+
+        if not dry_run and removed_ids:
+            self.hm.store = [x for x in self.hm.store if x.id not in removed_ids]
+            try:
+                self.lex_index.rebuild(self.hm.store)
+            except Exception:
+                self.lex_index.mark_dirty()
+
+        promoted: List[str] = []
+        for it in list(self.hm.store):
+            if project and not self._match_project(it.content, project):
+                continue
+            if self._is_durable_item(it):
+                continue
+            if int(it.cluster_size or 1) >= prom_min:
+                promoted.append((it.content or "")[:120])
+                if not dry_run:
+                    it.is_fact = True
+                    it.relevance = max(float(it.relevance or 0), floor)
+                    it.age = 0
+
+        demoted_work: List[str] = []
+        works = [
+            i for i in self.hm.store
+            if i.is_work and self._match_project(i.content, project)
+        ]
+        works.sort(key=lambda x: -(x.created_at or 0))
+        for w in works[max_w:]:
+            demoted_work.append((w.content or "")[:120])
+            if not dry_run:
+                w.is_work = False
+                w.is_fact = True
+
+        reinforced = 0
+        if reinforce_phi and not dry_run:
+            paths = [
+                i for i in self.hm.store
+                if self._is_durable_item(i)
+                and self._match_project(i.content, project)
+            ]
+            paths.sort(
+                key=lambda x: (
+                    int(x.cluster_size or 1),
+                    float(x.relevance or 0),
+                ),
+                reverse=True,
+            )
+            top = paths[: max(1, reinf_top)]
+            for it in top:
+                it.relevance = max(float(it.relevance or 0), floor)
+            if top:
+                try:
+                    self.hm._update_phi(top)
+                    reinforced = len(top)
+                except Exception:
+                    reinforced = 0
+
+        after = len(self.hm.store)
+        report = {
+            "ok": True,
+            "op": "crystallize",
+            "dry_run": bool(dry_run),
+            "project": project or None,
+            "threshold": thr,
+            "store_before": before,
+            "store_after": after if not dry_run else before - len(removed_ids),
+            "merged": len(merged_pairs),
+            "merged_pairs": merged_pairs[:40],
+            "promoted_to_fact": len(promoted),
+            "promoted_samples": promoted[:20],
+            "demoted_work_to_fact": len(demoted_work),
+            "demoted_samples": demoted_work[:20],
+            "phi_reinforced": reinforced,
+            "removed_ids": len(removed_ids),
+        }
+        return report
+
+    @staticmethod
+    def parse_since(since) -> Optional[float]:
+        """Parsuj ``24h`` / ``7d`` / ``90m`` / ``3600s`` / ``12`` → godziny.
+
+        Zwraca ``None`` gdy brak filtra. Raises ``ValueError`` przy złym formacie.
+        """
+        if since is None or since is False:
+            return None
+        if isinstance(since, (int, float)):
+            h = float(since)
+            if h < 0:
+                raise ValueError("since must be >= 0")
+            return h
+        s = str(since).strip().lower()
+        if not s or s in ("0", "none", "off", "all", "-"):
+            return None
+        import re
+        m = re.fullmatch(r"([0-9]*\.?[0-9]+)\s*([dhms])?", s)
+        if not m:
+            raise ValueError(
+                f"niepoprawne --since {since!r} (np. 24h, 7d, 90m, 12)"
+            )
+        val = float(m.group(1))
+        unit = m.group(2) or "h"
+        if unit == "d":
+            return val * 24.0
+        if unit == "h":
+            return val
+        if unit == "m":
+            return val / 60.0
+        if unit == "s":
+            return val / 3600.0
+        return val
+
+    def handoff(
+        self,
+        project: str = "",
+        max_work: int = 4,
+        max_facts: int = 8,
+        include_digest: bool = True,
+        since=None,
+    ) -> dict:
         """Maszynowy bootstrap sesji agenta (JSON) — mniej szumu niż pełny digest.
 
         Protokół: holon-agent-handoff-v1
+
+        ``since`` (B1): ``24h`` / ``7d`` / godziny — **tylko delty**
+        (itemy z ``created_at`` w oknie). Mniej tokenów przy re-boot / krótkiej przerwie.
         """
         if not self._started:
             self.start()
         st = self.stats()
-        work = [i for i in self.hm.store
-                if i.is_work and self._match_project(i.content, project)]
+        since_h = self.parse_since(since)
+        now = time.time()
+        cutoff = (now - since_h * 3600.0) if since_h is not None else None
+
+        def in_window(i: Item) -> bool:
+            if cutoff is None:
+                return True
+            ca = float(i.created_at or 0)
+            if ca <= 0:
+                return False
+            return ca >= cutoff
+
+        work_all = [
+            i for i in self.hm.store
+            if i.is_work and self._match_project(i.content, project)
+        ]
+        facts_all = [
+            i for i in self.hm.store
+            if i.is_fact and not i.is_work
+            and self._match_project(i.content, project)
+        ]
+        work = [i for i in work_all if in_window(i)]
+        facts = [i for i in facts_all if in_window(i)]
         work.sort(key=lambda x: -(x.created_at or 0))
-        facts = [i for i in self.hm.store
-                 if i.is_fact and not i.is_work
-                 and self._match_project(i.content, project)]
         facts.sort(key=lambda x: -(x.created_at or 0))
 
         def pack(i: Item) -> dict:
@@ -410,10 +803,12 @@ class AgentMemory:
             }
 
         wake = getattr(self.hm, "_last_wake", "") or ""
+        mode = "delta" if since_h is not None else "full"
         out = {
             "protocol": "holon-agent-handoff-v1",
             "profile": st.get("profile"),
             "project_filter": project or None,
+            "mode": mode,
             "stats": {
                 "turns": st.get("turns"),
                 "store": st.get("store"),
@@ -426,13 +821,14 @@ class AgentMemory:
             "active_work": [pack(i) for i in work[:max_work]],
             "key_facts": [pack(i) for i in facts[:max_facts]],
             "agent_protocol": [
-                "1. Na start sesji: handoff (ten JSON) lub digest.",
+                "1. Na start sesji: handoff / agent_boot.py; re-boot: --since 24h (B1 delty).",
                 "2. Po decyzji trwałej: remember --fact \"...\" (prefiks [Projekt]).",
                 "3. Aktywny wątek: set-work / remember --work; nie mnożyć work.",
-                "4. Nie kasuj/resetuj holon_memory.json bez prośby użytkownika.",
-                "5. Kod Holon ≠ KarmazynOs — Holon=pamięć; runtime w KarmazynOs.",
-                "6. Ewal regregresji: python holon_agent_memory.py eval",
-                "7. Docs: AGENTS.md, docs/AGENT_WORKFLOW.md, docs/MEMORY_API.md",
+                "4. Po sesji / gdy store szumi: crystallize [--project P] — B9 ścieżki.",
+                "5. Nie kasuj/resetuj holon_memory.json bez prośby użytkownika.",
+                "6. Kod Holon ≠ KarmazynOs — Holon=pamięć; runtime w KarmazynOs.",
+                "7. Ewal: python holon_agent_memory.py eval",
+                "8. Docs: AGENTS.md, docs/AGENT_WORKFLOW.md, docs/MEMORY_API.md",
             ],
             "paths": {
                 "memory": self.memory_path,
@@ -441,10 +837,184 @@ class AgentMemory:
                 "api": "holon_memory_api.py",
             },
         }
+        if since_h is not None:
+            out["since"] = {
+                "raw": since if not isinstance(since, (int, float)) else f"{since_h}h",
+                "hours": round(since_h, 6),
+                "cutoff": cutoff,
+                "work_in_window": len(work),
+                "facts_in_window": len(facts),
+                "work_total_project": len(work_all),
+                "facts_total_project": len(facts_all),
+            }
+            # w trybie delty pomiń pełny agent_protocol (oszczędność); krótki skrót
+            out["agent_protocol"] = [
+                "mode=delta: tylko wpisy z created_at w oknie --since.",
+                "Pełny kontekst: handoff bez --since lub agent_boot bez --since.",
+                "Zapis: remember --fact / set-work; crystallize gdy store szumi.",
+            ]
         if include_digest:
-            out["digest"] = self.digest(
-                max_facts=max_facts, max_work=max_work, project=project)
+            if since_h is not None:
+                # lekki digest delty — bez pełnej osi / starych factów
+                lines = [
+                    "=== HOLON AGENT DIGEST (DELTA) ===",
+                    f"since={out['since']['raw']} hours={since_h} "
+                    f"project={project or '*'}",
+                    f"new_work={len(work)} new_facts={len(facts)} "
+                    f"(project totals work={len(work_all)} facts={len(facts_all)})",
+                    "",
+                ]
+                if work:
+                    lines.append("NOWE / AKTYWNE WORK (w oknie):")
+                    for i in work[:max_work]:
+                        lines.append(
+                            f"  • [{self._past_label(i.created_at)}] "
+                            f"{(i.content or '')[:400]}"
+                        )
+                    lines.append("")
+                if facts:
+                    lines.append("NOWE FAKTY (w oknie):")
+                    for i in facts[:max_facts]:
+                        lines.append(
+                            f"  • [{self._past_label(i.created_at)}] "
+                            f"{(i.content or '')[:300]}"
+                        )
+                    lines.append("")
+                if not work and not facts:
+                    lines.append("(brak delty w oknie — store bez nowych wpisów)")
+                lines.append("=== END DIGEST ===")
+                out["digest"] = "\n".join(lines)
+            else:
+                out["digest"] = self.digest(
+                    max_facts=max_facts, max_work=max_work, project=project)
         return out
+
+    @staticmethod
+    def format_handoff_md(h: dict) -> str:
+        """B7: handoff JSON → czytelny Markdown (dla człowieka / wklejki SE)."""
+        from datetime import datetime, timezone
+
+        lines: List[str] = []
+        mode = h.get("mode") or "full"
+        proj = h.get("project_filter") or "all"
+        gen = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        lines.append("# Holon agent handoff")
+        lines.append("")
+        lines.append(f"- **protocol:** `{h.get('protocol', '?')}`")
+        lines.append(f"- **mode:** `{mode}`")
+        lines.append(f"- **profile:** `{h.get('profile', '?')}`")
+        lines.append(f"- **project:** `{proj}`")
+        lines.append(f"- **generated:** {gen}")
+        st = h.get("stats") or {}
+        if st:
+            lines.append(
+                f"- **stats:** store={st.get('store')} facts={st.get('facts')} "
+                f"work={st.get('work')} episodic={st.get('episodic')} "
+                f"Δh={st.get('delta_hours')}"
+            )
+        lines.append("")
+
+        wake = (h.get("wake") or "").strip()
+        if wake:
+            lines.append("## Wake")
+            lines.append("")
+            lines.append(wake)
+            lines.append("")
+
+        since = h.get("since")
+        if isinstance(since, dict):
+            lines.append("## Delta window (`--since`)")
+            lines.append("")
+            lines.append(
+                f"- raw=`{since.get('raw')}` hours={since.get('hours')} "
+                f"work_in_window={since.get('work_in_window')}/"
+                f"{since.get('work_total_project')} "
+                f"facts_in_window={since.get('facts_in_window')}/"
+                f"{since.get('facts_total_project')}"
+            )
+            lines.append("")
+
+        work = h.get("active_work") or []
+        lines.append("## Active work")
+        lines.append("")
+        if work:
+            for i, it in enumerate(work, 1):
+                when = it.get("when") or "?"
+                content = (it.get("content") or "").strip()
+                lines.append(f"{i}. **[{when}]** {content}")
+        else:
+            lines.append("_brak work w tym widoku_")
+        lines.append("")
+
+        facts = h.get("key_facts") or []
+        lines.append("## Key facts")
+        lines.append("")
+        if facts:
+            for i, it in enumerate(facts, 1):
+                when = it.get("when") or "?"
+                content = (it.get("content") or "").strip()
+                lines.append(f"{i}. **[{when}]** {content}")
+        else:
+            lines.append("_brak factów w tym widoku_")
+        lines.append("")
+
+        proto = h.get("agent_protocol") or []
+        if proto:
+            lines.append("## Agent protocol")
+            lines.append("")
+            for p in proto:
+                lines.append(f"- {p}")
+            lines.append("")
+
+        paths = h.get("paths") or {}
+        if paths:
+            lines.append("## Paths")
+            lines.append("")
+            for k, v in paths.items():
+                lines.append(f"- **{k}:** `{v}`")
+            lines.append("")
+
+        dig = (h.get("digest") or "").strip()
+        if dig:
+            lines.append("## Digest")
+            lines.append("")
+            lines.append("```")
+            lines.append(dig)
+            lines.append("```")
+            lines.append("")
+
+        lines.append("---")
+        lines.append("_Źródło: `holon-agent-handoff-v1` → B7 markdown_")
+        lines.append("")
+        return "\n".join(lines)
+
+    def handoff_md(
+        self,
+        project: str = "",
+        max_work: int = 4,
+        max_facts: int = 8,
+        include_digest: bool = False,
+        since=None,
+        out_path: Optional[str] = None,
+    ) -> str:
+        """B7: handoff jako Markdown; opcjonalnie zapis do pliku.
+
+        Domyślnie **bez** pełnego digest (krótszy md); włącz ``include_digest=True``.
+        """
+        h = self.handoff(
+            project=project,
+            max_work=max_work,
+            max_facts=max_facts,
+            include_digest=include_digest,
+            since=since,
+        )
+        md = self.format_handoff_md(h)
+        if out_path:
+            from pathlib import Path
+            p = Path(out_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(md, encoding="utf-8")
+        return md
 
     def collab_test(self) -> dict:
         """Powtarzalny test współpracy agenta z pamięcią (nie niszczy store na stałe
@@ -615,7 +1185,8 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
-        "llm-slot", "handoff", "set-work", "boot",
+        "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "boot",
+        "crystallize", "watch-remember",
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
@@ -629,10 +1200,40 @@ def _main(argv: Optional[List[str]] = None) -> int:
                    help="filtr / prefiks projektu (Holon, Karmazyn, …)")
     p.add_argument("--no-digest", action="store_true",
                    help="handoff: bez pełnego digest w JSON")
+    p.add_argument(
+        "--since",
+        default="",
+        help="handoff B1: tylko delty — 24h | 7d | 90m | godziny (np. 12)",
+    )
     p.add_argument("--max-active", type=int, default=3,
-                   help="set-work: ile work zostawić aktywnych")
+                   help="set-work / crystallize: ile work zostawić aktywnych")
+    p.add_argument("--dry-run", action="store_true",
+                   help="crystallize: raport bez mutacji store")
+    p.add_argument("--sim", type=float, default=None,
+                   help="crystallize: próg similarity (domyślnie z Config)")
     p.add_argument("--snapshot", default="holon_karmin_snapshot.json",
                    help="ścieżka snapshotu Karmin (export/import)")
+    p.add_argument(
+        "--out",
+        default="",
+        help="handoff-md: zapisz Markdown do pliku (np. handoff.md)",
+    )
+    p.add_argument(
+        "--inbox",
+        default="remember_inbox.jsonl",
+        help="watch-remember: ścieżka JSONL inbox (B4)",
+    )
+    p.add_argument(
+        "--poll",
+        type=float,
+        default=1.0,
+        help="watch-remember: interwał poll (s)",
+    )
+    p.add_argument(
+        "--once",
+        action="store_true",
+        help="watch-remember: jeden poll i wyjście",
+    )
     args = p.parse_args(argv)
 
     am = AgentMemory.open(memory_path=args.path)
@@ -647,6 +1248,8 @@ def _main(argv: Optional[List[str]] = None) -> int:
         boot_argv = []
         if args.project:
             boot_argv.extend(["--project", args.project])
+        if args.since:
+            boot_argv.extend(["--since", args.since])
         if not args.no_digest:
             boot_argv.append("--full")
         boot_argv.extend(["--path", args.path])
@@ -654,11 +1257,37 @@ def _main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "handoff":
         import json
-        h = am.handoff(
-            project=args.project,
-            include_digest=not args.no_digest,
-        )
+        try:
+            h = am.handoff(
+                project=args.project,
+                include_digest=not args.no_digest,
+                since=args.since or None,
+            )
+        except ValueError as e:
+            print(f"handoff: {e}", file=sys.stderr)
+            return 2
         print(json.dumps(h, indent=2, ensure_ascii=False, default=str))
+        return 0
+
+    if args.cmd == "handoff-md":
+        # B7: Markdown. Domyślnie bez digest; dodaj digest: handoff-md digest
+        try:
+            want_dig = (args.text or "").strip().lower() in (
+                "digest", "full", "with-digest",
+            ) and not args.no_digest
+            md = am.handoff_md(
+                project=args.project,
+                include_digest=want_dig,
+                since=args.since or None,
+                out_path=args.out or None,
+            )
+        except ValueError as e:
+            print(f"handoff-md: {e}", file=sys.stderr)
+            return 2
+        if args.out:
+            print(f"handoff-md: wrote {args.out} ({len(md)} chars)")
+        else:
+            sys.stdout.write(md if md.endswith("\n") else md + "\n")
         return 0
 
     if args.cmd == "stats":
@@ -706,6 +1335,19 @@ def _main(argv: Optional[List[str]] = None) -> int:
             print(f"set-work id={item.id[:8]}… (bez zapisu)")
         return 0
 
+    if args.cmd == "crystallize":
+        import json as _json
+        rep = am.crystallize(
+            project=args.project,
+            dry_run=bool(args.dry_run),
+            sim_threshold=args.sim,
+            max_active_work=args.max_active,
+        )
+        if not args.dry_run and not args.no_save:
+            rep["save"] = am.save()
+        print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
+
     if args.cmd == "collab-test":
         import json as _json
         report = am.collab_test()
@@ -733,6 +1375,36 @@ def _main(argv: Optional[List[str]] = None) -> int:
             {"ok": report["ok"], "n_checks": len(report["checks"])},
             ensure_ascii=False, indent=2))
         return 0 if report["ok"] else 1
+
+    if args.cmd == "ablation":
+        import json as _json
+        from holon_memory_eval import run_ablation_report
+        report = run_ablation_report()
+        print(_json.dumps(report, indent=2, ensure_ascii=False, default=str))
+        print()
+        print("ABLATION:", "OK" if report.get("ok") else "FAILED")
+        return 0 if report.get("ok") else 1
+
+    if args.cmd == "watch-remember":
+        import json as _json
+        from holon_remember_watch import RememberInbox, describe_watch_slot
+        if args.once:
+            w = RememberInbox(
+                am, args.inbox, poll_s=args.poll, auto_save=not args.no_save
+            )
+            rep = w.poll_once()
+            print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+            return 0 if rep.get("ok") else 1
+        print(_json.dumps(describe_watch_slot(), indent=2, ensure_ascii=False))
+        print(f"watching {args.inbox} poll={args.poll}s (Ctrl+C stop)", flush=True)
+        w = RememberInbox(
+            am, args.inbox, poll_s=args.poll, auto_save=not args.no_save
+        )
+        try:
+            w.run_forever()
+        except KeyboardInterrupt:
+            print("\n[remember-watch] stop")
+        return 0
 
     if args.cmd == "llm-slot":
         import json as _json

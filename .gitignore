@@ -31,6 +31,10 @@ knowledge/
 COLLAB.md
 AGENT_DIGEST*.md
 digest_*.txt
+handoff.md
+handoff_*.md
+remember_inbox.jsonl
+*.holon-offset
 
 # --- Sesje / logi / runtime agenta ---
 .session/
