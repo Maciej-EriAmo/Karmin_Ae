@@ -47,7 +47,7 @@ except ImportError:
 
 def main():
     print("=" * 60)
-    print("  holonP v5.11 SECURE — EriAmo / HolonOS")
+    print("  holonP v5.12 SECURE — EriAmo / HolonOS")
     print("=" * 60)
     
     # Inicjalizacja

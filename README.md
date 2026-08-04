@@ -3,7 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-advanced-blue.svg)](docs/README.md)
 
-**Trwała, czasowa pamięć lokalna dla agenta SE (Grok/CLI) i sesji czatu EriAmo.**
+**Trwała, czasowa pamięć lokalna dla agenta SE (Grok/CLI) i sesji czatu EriAmo.**  
+**Wersja:** **v5.12.0** — Plan B surface SE (B1–B9).
 
 HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.  
 **Wartość codzienna:** fact · work · pastness · handoff · inject do promptu — bez GPU.

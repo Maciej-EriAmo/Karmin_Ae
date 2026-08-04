@@ -1,5 +1,6 @@
 # AGENTS.md — ścieżka dla Grok / CLI (czytaj TO najpierw)
 
+> **Holon v5.12** — Plan B surface (boot · since · crystallize · handoff-md · lex · hooks · CI · ablation · Mneme).  
 > **Cudze chwalicie, swego nie znacie.**  
 > W tym workspace pamięć SE **już jest**: Holon + Mneme + handoff.  
 > Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.

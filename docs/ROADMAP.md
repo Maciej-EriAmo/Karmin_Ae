@@ -1,5 +1,8 @@
 # Roadmapa Holon (pamięć SE + silnik)
 
+**Wersja produktu:** **v5.12.0** (2026-08) — Plan B surface SE (B1–B9 bez B3b).  
+Poprzednia linia chat/silnik: v5.11.
+
 ## Cel nadrzędny
 
 Holon ma być **najlepszą lokalną pamięcią partnera SE** (Grok/CLI): trwałą, czasową, testowalną — nie „holograficznym SaaS”.

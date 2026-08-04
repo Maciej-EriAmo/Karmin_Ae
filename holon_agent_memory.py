@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """holon_agent_memory.py — cienki adapter pamięci Holona pod agenta kodowego (Grok/CLI).
 
+Holon **v5.12** — Plan B SE surface (handoff --since, crystallize, handoff-md,
+lex index, on_remember, watch-remember, ablation, eval CI).
+
 Use-case: Holon-as-memory (ciągłość SE), NIE kanon czatu EriAmo.
 Profil: zawsze ``Config.agent()`` (jawny; chat = ``Config.chat()`` w Session).
 

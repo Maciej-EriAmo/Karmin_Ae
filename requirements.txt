@@ -1,4 +1,4 @@
-# Holon v5.11 - Dependencies
+# Holon v5.12 - Dependencies
 # pip install -r requirements.txt
 
 # Core

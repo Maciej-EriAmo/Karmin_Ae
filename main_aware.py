@@ -29,7 +29,7 @@ from holon_session_aware import AwareSession
 
 def main():
     print("=" * 60)
-    print("  holonP v5.11 AWARE — EriAmo z pełną świadomością")
+    print("  holonP v5.12 AWARE — EriAmo z pełną świadomością")
     print("=" * 60)
     
     session = AwareSession(

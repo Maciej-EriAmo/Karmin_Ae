@@ -85,7 +85,7 @@ class SecureSession:
         s    = self.holomem.stats()
         aii  = s["aii"]
         scanner_status = "ON" if self._enable_scanner else "OFF"
-        print(f"\n[holonP v5.11 SECURE] tur={s['turns']} store={s['store']} "
+        print(f"\n[holonP v5.12 SECURE] tur={s['turns']} store={s['store']} "
               f"delta={s['delta_hours']}h scanner={scanner_status} "
               f"aii={aii['emotion']}(focus:{aii['focus']})")
         self._watcher = ReminderWatcher(self.holomem)

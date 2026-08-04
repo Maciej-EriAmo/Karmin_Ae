@@ -20,9 +20,9 @@ if readme_path.exists():
     long_description = readme_path.read_text(encoding="utf-8")
 else:
     long_description = """
-# Holon v5.11
+# Holon v5.12
 
-Cognitive Architecture Layer for LLMs.
+Cognitive Architecture Layer for LLMs + SE agent surface (Plan B).
 
 Features:
 - Persistent holographic memory (HRR encoding)
@@ -45,13 +45,13 @@ GitHub: github.com/Maciej-EriAmo/Holomem
 
 setup(
     name="holon",
-    version="5.11.0",
+    version="5.12.0",
     author="Maciej Mazur",
     author_email="maciej@eriamo.ai",
-    description="Cognitive Architecture Layer for LLMs",
+    description="Cognitive Architecture Layer for LLMs + SE agent surface",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Maciej-EriAmo/Holomem",
+    url="https://github.com/Maciej-EriAmo/holonOs",
     
     # Package discovery
     py_modules=[
@@ -67,6 +67,14 @@ setup(
         "holon_llm",
         "holon_watcher",
         "holon_fs",
+        "holon_agent_memory",
+        "holon_memory_api",
+        "holon_memory_eval",
+        "holon_mneme",
+        "holon_lexindex",
+        "holon_remember_watch",
+        "holon_backend_karmin",
+        "agent_boot",
         "prompt_scanner",
         "web_extractor",
         "knowledge_store",

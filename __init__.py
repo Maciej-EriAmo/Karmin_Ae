@@ -1,26 +1,31 @@
 # -*- coding: utf-8 -*-
 """
-Holon v5.11 — Cognitive Architecture Layer for LLMs
+Holon v5.12 — Cognitive Architecture Layer for LLMs + SE agent surface (Plan B)
 
 Holon provides:
 - Persistent holographic memory (HRR encoding)
+- Agent SE path: agent_boot, handoff --since, crystallize, Mneme, eval
 - Emotional state tracking (AIIState)
 - Temporal awareness (time_embed, TimeDecay)
 - Predictive coding (Rao-Ballard/FEP)
 - Continuous routing (PrismRouter)
 
-Usage:
+Usage (pamięć SE / Grok):
+    python agent_boot.py
+    from holon_memory_api import open_memory
+    mem = open_memory()
+
+Usage (chat EriAmo):
     from holon import Session
-    
     session = Session(memory_path="holon_memory.json")
     session.start()
     response = session.chat("Hello!")
 
 Author: Maciej Mazur
-GitHub: github.com/Maciej-EriAmo/Holomem
+GitHub: github.com/Maciej-EriAmo/holonOs
 """
 
-__version__ = "5.11.0"
+__version__ = "5.12.0"
 __author__ = "Maciej Mazur"
 
 # Core
