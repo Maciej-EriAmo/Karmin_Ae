@@ -6,7 +6,8 @@ Dokumentacja jest **warstwowa**: najpierw kontrakt agenta i API, potem architekt
 docs/
   README.md              ← tu jesteś
   AGENT_WORKFLOW.md      ← jak agent ma pracować z pamięcią
-  MEMORY_API.md          ← remember / recall / digest / handoff / set-work
+  MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
+  B10_HANDOFF.md         ← B10 projection (hybrid since, anchors, close)
   ARCHITECTURE.md        ← moduły, przepływ, profile
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu
@@ -24,8 +25,10 @@ pip install -r requirements.txt
 python agent_boot.py
 python holon_agent_memory.py seed
 python holon_agent_memory.py handoff --no-digest
-python holon_agent_memory.py handoff --since 24h          # B1 delty
+python holon_agent_memory.py handoff --since 24h          # B1+B10 hybrid
+python agent_boot.py --compact --no-banner
 python holon_agent_memory.py handoff-md --out handoff.md  # B7
+python holon_agent_memory.py close --work-text "…" --fact-text "…" --project Holon
 python holon_agent_memory.py crystallize --dry-run        # B9
 python holon_agent_memory.py ablation                     # B6
 python holon_agent_memory.py eval
@@ -44,6 +47,7 @@ python holon_agent_memory.py eval
 | B7 | handoff → md | `handoff-md` · `agent_boot --md` |
 | B8 | Mneme | MNEME.md |
 | B9 | krystalizacja | `crystallize` |
+| B10 | handoff projection | [B10_HANDOFF.md](B10_HANDOFF.md) · hybrid · close · compact |
 | B3b | Karmin RPC | 📋 backlog |
 
 ## Dwa produkty w jednym repo

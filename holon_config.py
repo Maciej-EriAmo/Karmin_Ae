@@ -84,7 +84,14 @@ class Config:
     crystallize_promote_cluster_min: int = 2
     crystallize_reinforce_top: int = 24
     crystallize_relevance_floor: float = 1.4
-    crystallize_max_active_work: int = 3
+    crystallize_max_active_work: int = 1
+    # ── B10 handoff / set-work (projekcja SE, mniej szumu) ────────────────
+    set_work_max_active: int = 1
+    handoff_max_work: int = 2
+    handoff_max_facts: int = 6
+    handoff_max_chronicle: int = 4
+    handoff_hybrid_since: bool = True  # --since: dołóż last work poza oknem
+    remember_merge_sim: float = 0.88  # semantic merge w remember
     focus_boost: float = 1.25
     phase_shifts_learnable: bool = True
     conversation_history_size: int = 12
@@ -133,7 +140,13 @@ class Config:
             # SE: trochę niższy próg merge (KuRz bywa sztywny), więcej ścieżek Φ
             crystallize_sim_threshold=0.88,
             crystallize_reinforce_top=32,
-            crystallize_max_active_work=3,
+            crystallize_max_active_work=1,
+            set_work_max_active=1,
+            handoff_max_work=2,
+            handoff_max_facts=6,
+            handoff_max_chronicle=4,
+            handoff_hybrid_since=True,
+            remember_merge_sim=0.88,
         )
         return replace(c, **overrides) if overrides else c
 

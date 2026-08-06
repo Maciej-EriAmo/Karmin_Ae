@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """holon_agent_memory.py — cienki adapter pamięci Holona pod agenta kodowego (Grok/CLI).
 
-Holon **v5.12** — Plan B SE surface (handoff --since, crystallize, handoff-md,
-lex index, on_remember, watch-remember, ablation, eval CI).
+Holon **v5.13** — Plan B + B10 handoff projection (hybrid since, anchors/chronicle,
+close, recommended_actions, suggested_mneme, last-project).
 
 Use-case: Holon-as-memory (ciągłość SE), NIE kanon czatu EriAmo.
 Profil: zawsze ``Config.agent()`` (jawny; chat = ``Config.chat()`` w Session).
@@ -12,6 +12,7 @@ Kontrakt: ``MemoryAPI`` (remember / recall / digest / save) — patrz holon_memo
   python holon_agent_memory.py digest
   python holon_agent_memory.py remember --fact "..."
   python holon_agent_memory.py remember --work "..."
+  python holon_agent_memory.py close --work "..." --fact "..." --project P
   python holon_agent_memory.py recall "query"
   python holon_agent_memory.py seed
   python holon_agent_memory.py stats
@@ -29,9 +30,13 @@ Użycie z kodu:
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import re
 import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -195,6 +200,7 @@ class AgentMemory:
 
         emb = self.hm.embedder.encode(content, timestamp=time.time())
         best = None
+        merge_thr = float(getattr(self.hm.cfg, "remember_merge_sim", 0.88))
         # 1) exact / prefix — KuRz często nie scala tego samego tekstu (sim≪0.9)
         c_norm = content[:800].strip().lower()
         for it in self.hm.store:
@@ -205,7 +211,7 @@ class AgentMemory:
                 break
         if best is None and self.hm.store:
             best_sim, cand = self.hm._find_best_match(emb)
-            if cand is not None and best_sim > 0.88:
+            if cand is not None and best_sim > merge_thr:
                 best = cand
         if best is not None:
             self.hm._semantic_merge(best, emb)
@@ -447,10 +453,11 @@ class AgentMemory:
         return base
 
     def set_work(self, content: str, project: str = "",
-                 max_active: int = 3) -> Item:
+                 max_active: Optional[int] = None) -> Item:
         """Ustaw aktywne work; nadmiar work (ten sam projekt) → fact (historia).
 
         Prefiks ``[Project]`` dodawany gdy ``project`` podany i brak w treści.
+        Domyślnie ``max_active=1`` (Config.set_work_max_active) — jeden wątek.
         """
         content = (content or "").strip()
         if not content:
@@ -458,6 +465,9 @@ class AgentMemory:
         proj = (project or "").strip()
         if proj and f"[{proj}]" not in content and f"[{proj.lower()}]" not in content.lower():
             content = f"[{proj}] {content}"
+        if max_active is None:
+            max_active = int(getattr(self.hm.cfg, "set_work_max_active", 1))
+        max_active = max(1, int(max_active))
         item = self.remember(content, kind="work", relevance=1.6)
         works = [i for i in self.hm.store if i.is_work]
         if proj:
@@ -468,7 +478,94 @@ class AgentMemory:
                 continue
             w.is_work = False
             w.is_fact = True  # historia projektu zostaje durable
+        if proj:
+            self.touch_last_project(proj)
         return item
+
+    # ── B10: last-project + close sesji ───────────────────────────────────
+
+    def meta_path(self) -> Path:
+        """``holon_memory.meta.json`` obok store (last_project, nie w gicie)."""
+        p = Path(self.memory_path)
+        return p.with_name(p.stem + ".meta.json")
+
+    def touch_last_project(self, project: str) -> None:
+        """Zapisz ostatni projekt (dla boot bez --project)."""
+        proj = (project or "").strip()
+        if not proj:
+            return
+        path = self.meta_path()
+        data = {"last_project": proj, "updated_at": time.time()}
+        try:
+            if path.is_file():
+                old = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(old, dict):
+                    old.update(data)
+                    data = old
+            path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+    def read_last_project(self) -> str:
+        """Odczyt last_project z meta lub env ``HOLON_DEFAULT_PROJECT``."""
+        env = (os.environ.get("HOLON_DEFAULT_PROJECT") or "").strip()
+        if env:
+            return env
+        try:
+            path = self.meta_path()
+            if path.is_file():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return str(data.get("last_project") or "").strip()
+        except Exception:
+            pass
+        return ""
+
+    def close(
+        self,
+        *,
+        work: str = "",
+        fact: str = "",
+        project: str = "",
+        max_active: Optional[int] = None,
+        save: bool = True,
+    ) -> dict:
+        """B10: domknięcie sesji — atomowo 1 work + 1 fact summary.
+
+        ``set-work`` (max_active domyślnie 1) + ``remember --fact`` + opcjonalny save.
+        """
+        if not self._started:
+            self.start()
+        proj = (project or "").strip()
+        report: dict = {
+            "ok": True,
+            "op": "close",
+            "project": proj or None,
+            "work_id": None,
+            "fact_id": None,
+            "saved": False,
+        }
+        w = (work or "").strip()
+        f = (fact or "").strip()
+        if not w and not f:
+            raise ValueError("close: podaj --work i/lub --fact")
+        if w:
+            item_w = self.set_work(w, project=proj, max_active=max_active)
+            report["work_id"] = item_w.id
+            report["work"] = (item_w.content or "")[:200]
+        if f:
+            if proj and f"[{proj}]" not in f and f"[{proj.lower()}]" not in f.lower():
+                f = f"[{proj}] {f}"
+            item_f = self.remember(f, kind="fact", relevance=1.55)
+            report["fact_id"] = item_f.id
+            report["fact"] = (item_f.content or "")[:200]
+            if proj:
+                self.touch_last_project(proj)
+        if save:
+            report["saved"] = bool(self.save())
+        return report
 
     # ── Krystalizacja (B9) — utrwalanie stałych ścieżek pamięci ──────────
 
@@ -749,27 +846,206 @@ class AgentMemory:
             return val / 3600.0
         return val
 
+    @staticmethod
+    def _handoff_norm_content(text: str) -> str:
+        return re.sub(r"\s+", " ", (text or "").strip().lower())[:160]
+
+    def _handoff_dedupe(self, items: List[Item], max_n: int) -> List[Item]:
+        """Usuń near-dupy w projekcji handoff (nie mutuje store)."""
+        out: List[Item] = []
+        seen: List[str] = []
+        for it in items:
+            if len(out) >= max_n:
+                break
+            n = self._handoff_norm_content(it.content or "")
+            if not n:
+                continue
+            dup = False
+            for s in seen:
+                if n == s or (len(n) > 48 and (n[:64] in s or s[:64] in n)):
+                    dup = True
+                    break
+                # token Jaccard na krótkich oknach
+                ta, tb = set(n.split()), set(s.split())
+                if ta and tb:
+                    j = len(ta & tb) / max(1, len(ta | tb))
+                    if j >= 0.72:
+                        dup = True
+                        break
+            if dup:
+                continue
+            seen.append(n)
+            out.append(it)
+        return out
+
+    def _fact_anchor_score(self, item: Item) -> tuple:
+        """Kotwice: relevance + cluster + długość; lekka świeżość na remis."""
+        return (
+            float(item.relevance or 0),
+            int(item.cluster_size or 1),
+            len(item.content or ""),
+            float(item.created_at or 0),
+        )
+
+    def _pack_item(self, i: Item, *, outside_window: Optional[bool] = None) -> dict:
+        d = {
+            "when": self._past_label(i.created_at),
+            "created_at": i.created_at,
+            "content": (i.content or "")[:500],
+            "flags": {
+                "fact": bool(i.is_fact),
+                "work": bool(i.is_work),
+                "insight": bool(i.is_insight),
+            },
+        }
+        if outside_window is not None:
+            d["outside_window"] = bool(outside_window)
+        return d
+
+    def _suggested_mneme(
+        self, work_items: List[Item], project: str = ""
+    ) -> List[str]:
+        """Gotowe zapytania Mneme-L z active work (B10)."""
+        if not work_items:
+            return []
+        raw = work_items[0].content or ""
+        # zdejmij [Project]
+        raw = re.sub(r"\[[^\]]+\]\s*", "", raw).strip()
+        # tokeny alfanum ≥3, bez szumu
+        stop = {
+            "next", "optional", "later", "done", "saved", "the", "and", "for",
+            "with", "from", "that", "this", "następny", "opcjonalnie", "dalej",
+        }
+        toks = [
+            t for t in re.findall(r"[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż0-9_./-]{3,}", raw)
+            if t.lower() not in stop
+        ]
+        if not toks:
+            return []
+        # preferuj tokeny z cyfrą / camel / path-ish
+        ranked = sorted(
+            toks,
+            key=lambda t: (
+                1 if any(c.isdigit() for c in t) else 0,
+                1 if "/" in t or "." in t or "_" in t else 0,
+                len(t),
+            ),
+            reverse=True,
+        )
+        primary = " ".join(ranked[:3])[:48].strip()
+        secondary = ranked[0][:40] if ranked else primary
+        if not primary:
+            return []
+        out = [
+            f'RECALL "{primary}" TOP 5',
+            f'NEAR "{secondary}" TOP 3',
+        ]
+        if project:
+            out.append(f'FOCUS PROJECT {project}')
+        return out[:3]
+
+    def _recommended_actions(
+        self,
+        *,
+        project: str,
+        n_work: int,
+        n_facts: int,
+        delta_hours,
+        since_h,
+        hybrid_filled: bool,
+        work_in_window: int,
+        facts_in_window: int,
+    ) -> List[str]:
+        """Sygnały operacyjne z store (nie zmyślanie treści)."""
+        acts: List[str] = []
+        cfg = self.hm.cfg
+        max_w = int(getattr(cfg, "set_work_max_active", 1))
+        proj = (project or "").strip()
+        pflag = f" --project {proj}" if proj else ""
+        try:
+            dh = float(delta_hours) if delta_hours is not None else 0.0
+        except (TypeError, ValueError):
+            dh = 0.0
+        if n_work > max_w:
+            acts.append(
+                f"crystallize{pflag}  # work={n_work}>{max_w}; demote nadmiar"
+            )
+        if n_work > 1:
+            acts.append(
+                f'set-work "…" --max-active 1{pflag}  # jeden aktywny wątek'
+            )
+        if n_facts >= 40 and proj:
+            acts.append(f"crystallize{pflag}  # store szumi (facts≥40 w projekcie)")
+        if dh >= 48 and since_h is not None:
+            acts.append(
+                "agent_boot bez --since  # długa przerwa — pełne anchors"
+            )
+        if since_h is not None and work_in_window == 0 and facts_in_window == 0:
+            if hybrid_filled:
+                acts.append(
+                    "brak delty w oknie; active_work z poza okna (hybrid) — "
+                    "zapisz close/set-work gdy ruszysz wątek"
+                )
+            else:
+                acts.append(
+                    "brak delty w oknie; handoff pełny lub --since większe okno"
+                )
+        if not acts:
+            acts.append(
+                f'close --work "…" --fact "…" {pflag.strip()}  # domknięcie sesji B10'
+                if proj
+                else 'close --work "…" --fact "…" --project P  # domknięcie sesji B10'
+            )
+        return acts[:5]
+
     def handoff(
         self,
         project: str = "",
-        max_work: int = 4,
-        max_facts: int = 8,
+        max_work: Optional[int] = None,
+        max_facts: Optional[int] = None,
         include_digest: bool = True,
         since=None,
+        *,
+        compact: bool = False,
+        hybrid_since: Optional[bool] = None,
+        max_chronicle: Optional[int] = None,
     ) -> dict:
         """Maszynowy bootstrap sesji agenta (JSON) — mniej szumu niż pełny digest.
 
-        Protokół: holon-agent-handoff-v1
+        Protokół: holon-agent-handoff-v1 (+ B10 projection)
 
-        ``since`` (B1): ``24h`` / ``7d`` / godziny — **tylko delty**
-        (itemy z ``created_at`` w oknie). Mniej tokenów przy re-boot / krótkiej przerwie.
+        ``since`` (B1): okno delty. **B10 hybrid** (domyślnie on): w ``active_work``
+        dołóż last work spoza okna (``outside_window: true``), żeby re-boot
+        nie dawał fałszywej amnezji.
+
+        B10 warstwy factów:
+          - ``anchors`` — stabilne kotwice (relevance/cluster)
+          - ``chronicle`` — świeższy log (nie duplikuje anchors)
+          - ``key_facts`` — kompat: w full=anchors; w delta/hybrid=nowe w oknie
         """
         if not self._started:
             self.start()
         st = self.stats()
+        cfg = self.hm.cfg
+        if max_work is None:
+            max_work = int(getattr(cfg, "handoff_max_work", 2))
+        if max_facts is None:
+            max_facts = int(getattr(cfg, "handoff_max_facts", 6))
+        if max_chronicle is None:
+            max_chronicle = int(getattr(cfg, "handoff_max_chronicle", 4))
+        if compact:
+            max_work = min(max_work, 2)
+            max_facts = min(max_facts, 5)
+            max_chronicle = min(max_chronicle, 2)
+        max_work = max(1, int(max_work))
+        max_facts = max(1, int(max_facts))
+        max_chronicle = max(0, int(max_chronicle))
+
         since_h = self.parse_since(since)
         now = time.time()
         cutoff = (now - since_h * 3600.0) if since_h is not None else None
+        if hybrid_since is None:
+            hybrid_since = bool(getattr(cfg, "handoff_hybrid_since", True))
 
         def in_window(i: Item) -> bool:
             if cutoff is None:
@@ -788,25 +1064,68 @@ class AgentMemory:
             if i.is_fact and not i.is_work
             and self._match_project(i.content, project)
         ]
-        work = [i for i in work_all if in_window(i)]
-        facts = [i for i in facts_all if in_window(i)]
-        work.sort(key=lambda x: -(x.created_at or 0))
-        facts.sort(key=lambda x: -(x.created_at or 0))
+        work_all.sort(key=lambda x: -(x.created_at or 0))
+        facts_all.sort(key=lambda x: -(x.created_at or 0))
 
-        def pack(i: Item) -> dict:
-            return {
-                "when": self._past_label(i.created_at),
-                "created_at": i.created_at,
-                "content": (i.content or "")[:500],
-                "flags": {
-                    "fact": bool(i.is_fact),
-                    "work": bool(i.is_work),
-                    "insight": bool(i.is_insight),
-                },
-            }
+        work_in = [i for i in work_all if in_window(i)]
+        work_out = [i for i in work_all if not in_window(i)]
+        facts_in = [i for i in facts_all if in_window(i)]
+
+        # ── work projection (B10 hybrid) ─────────────────────────────────
+        selected_work: List[Tuple[Item, bool]] = []
+        hybrid_filled = False
+        if since_h is not None:
+            for i in work_in:
+                if len(selected_work) >= max_work:
+                    break
+                selected_work.append((i, False))
+            if hybrid_since:
+                for i in work_out:
+                    if len(selected_work) >= max_work:
+                        break
+                    selected_work.append((i, True))
+                    hybrid_filled = True
+            mode = "hybrid" if hybrid_filled else "delta"
+        else:
+            # full: jeden/kilka wątków, dedupe near-dup work
+            for i in self._handoff_dedupe(work_all, max_work):
+                selected_work.append((i, False))
+            mode = "full"
+
+        active_packed = [
+            self._pack_item(i, outside_window=ow if since_h is not None else None)
+            for i, ow in selected_work
+        ]
+        # recent_done: zdemotowane work→fact nie ma flagi work; pokazujemy starsze work
+        # poza active (jeśli zostało) jako historię wątku
+        selected_ids = {id(i) for i, _ in selected_work}
+        recent_done = [
+            self._pack_item(i)
+            for i in work_all
+            if id(i) not in selected_ids
+        ][:2]
+
+        # ── fact projection: anchors + chronicle ─────────────────────────
+        anchors_src = sorted(facts_all, key=self._fact_anchor_score, reverse=True)
+        anchors = self._handoff_dedupe(anchors_src, max_facts)
+        anchor_ids = {id(x) for x in anchors}
+        chronicle_src = [i for i in facts_all if id(i) not in anchor_ids]
+        chronicle = self._handoff_dedupe(chronicle_src, max_chronicle)
+
+        if since_h is not None:
+            # key_facts = delty w oknie (kompat B1); nie mieszaj starych do key_facts
+            key_facts_items = self._handoff_dedupe(facts_in, max_facts)
+        else:
+            key_facts_items = anchors
 
         wake = getattr(self.hm, "_last_wake", "") or ""
-        mode = "delta" if since_h is not None else "full"
+        if since_h is not None and not work_in and not facts_in and hybrid_filled:
+            wake = (
+                (wake + " " if wake else "")
+                + "[B10 hybrid: brak delty w oknie — active_work spoza --since.]"
+            ).strip()
+
+        work_items_for_mneme = [i for i, _ in selected_work]
         out = {
             "protocol": "holon-agent-handoff-v1",
             "profile": st.get("profile"),
@@ -821,12 +1140,28 @@ class AgentMemory:
                 "episodic": st.get("episodic"),
             },
             "wake": wake,
-            "active_work": [pack(i) for i in work[:max_work]],
-            "key_facts": [pack(i) for i in facts[:max_facts]],
+            "active_work": active_packed,
+            "recent_done": recent_done,
+            "key_facts": [self._pack_item(i) for i in key_facts_items],
+            "anchors": [self._pack_item(i) for i in anchors],
+            "chronicle": [self._pack_item(i) for i in chronicle],
+            "recommended_actions": self._recommended_actions(
+                project=project or "",
+                n_work=len(work_all),
+                n_facts=len(facts_all),
+                delta_hours=st.get("delta_hours"),
+                since_h=since_h,
+                hybrid_filled=hybrid_filled,
+                work_in_window=len(work_in),
+                facts_in_window=len(facts_in),
+            ),
+            "suggested_mneme": self._suggested_mneme(
+                work_items_for_mneme, project=project or ""
+            ),
             "agent_protocol": [
-                "1. Na start sesji: handoff / agent_boot.py; re-boot: --since 24h (B1 delty).",
+                "1. Na start sesji: handoff / agent_boot.py; re-boot: --since 24h (B1+B10 hybrid).",
                 "2. Po decyzji trwałej: remember --fact \"...\" (prefiks [Projekt]).",
-                "3. Aktywny wątek: set-work / remember --work; nie mnożyć work.",
+                "3. Aktywny wątek: set-work (domyślnie 1) / close na koniec sesji.",
                 "4. Po sesji / gdy store szumi: crystallize [--project P] — B9 ścieżki.",
                 "5. Nie kasuj/resetuj holon_memory.json bez prośby użytkownika.",
                 "6. Kod Holon ≠ KarmazynOs — Holon=pamięć; runtime w KarmazynOs.",
@@ -840,51 +1175,66 @@ class AgentMemory:
                 "api": "holon_memory_api.py",
             },
         }
+        if compact:
+            # mniej tokenów: protokół skrócony; chronicle tylko gdy full
+            out["agent_protocol"] = [
+                "boot → work/fact → close; crystallize gdy szumi; nie resetuj store.",
+            ]
+            if since_h is not None:
+                out["chronicle"] = []
+                out["anchors"] = out["anchors"][:3]
+
         if since_h is not None:
             out["since"] = {
                 "raw": since if not isinstance(since, (int, float)) else f"{since_h}h",
                 "hours": round(since_h, 6),
                 "cutoff": cutoff,
-                "work_in_window": len(work),
-                "facts_in_window": len(facts),
+                "work_in_window": len(work_in),
+                "facts_in_window": len(facts_in),
                 "work_total_project": len(work_all),
                 "facts_total_project": len(facts_all),
+                "hybrid": bool(hybrid_since),
+                "hybrid_filled": bool(hybrid_filled),
             }
-            # w trybie delty pomiń pełny agent_protocol (oszczędność); krótki skrót
-            out["agent_protocol"] = [
-                "mode=delta: tylko wpisy z created_at w oknie --since.",
-                "Pełny kontekst: handoff bez --since lub agent_boot bez --since.",
-                "Zapis: remember --fact / set-work; crystallize gdy store szumi.",
-            ]
+            if not compact:
+                out["agent_protocol"] = [
+                    "mode=delta|hybrid: facts w oknie; work hybrid dopełnia spoza okna.",
+                    "strict delta: handoff(..., hybrid_since=False) / agent_boot --strict-delta.",
+                    "Zapis: close / remember --fact / set-work; crystallize gdy store szumi.",
+                ]
         if include_digest:
             if since_h is not None:
-                # lekki digest delty — bez pełnej osi / starych factów
                 lines = [
-                    "=== HOLON AGENT DIGEST (DELTA) ===",
+                    "=== HOLON AGENT DIGEST (DELTA/HYBRID) ===",
                     f"since={out['since']['raw']} hours={since_h} "
-                    f"project={project or '*'}",
-                    f"new_work={len(work)} new_facts={len(facts)} "
+                    f"project={project or '*'} hybrid={hybrid_filled}",
+                    f"new_work={len(work_in)} new_facts={len(facts_in)} "
                     f"(project totals work={len(work_all)} facts={len(facts_all)})",
                     "",
                 ]
-                if work:
-                    lines.append("NOWE / AKTYWNE WORK (w oknie):")
-                    for i in work[:max_work]:
+                if active_packed:
+                    lines.append("ACTIVE WORK (hybrid-aware):")
+                    for p in active_packed[:max_work]:
+                        tag = " [outside]" if p.get("outside_window") else ""
                         lines.append(
-                            f"  • [{self._past_label(i.created_at)}] "
-                            f"{(i.content or '')[:400]}"
+                            f"  • [{p.get('when')}]{tag} "
+                            f"{(p.get('content') or '')[:400]}"
                         )
                     lines.append("")
-                if facts:
+                if key_facts_items:
                     lines.append("NOWE FAKTY (w oknie):")
-                    for i in facts[:max_facts]:
+                    for i in key_facts_items[:max_facts]:
                         lines.append(
                             f"  • [{self._past_label(i.created_at)}] "
                             f"{(i.content or '')[:300]}"
                         )
                     lines.append("")
-                if not work and not facts:
+                if not work_in and not facts_in and not hybrid_filled:
                     lines.append("(brak delty w oknie — store bez nowych wpisów)")
+                elif not work_in and not facts_in and hybrid_filled:
+                    lines.append(
+                        "(brak delty w oknie — pokazano work spoza okna, B10 hybrid)"
+                    )
                 lines.append("=== END DIGEST ===")
                 out["digest"] = "\n".join(lines)
             else:
@@ -944,10 +1294,21 @@ class AgentMemory:
             for i, it in enumerate(work, 1):
                 when = it.get("when") or "?"
                 content = (it.get("content") or "").strip()
-                lines.append(f"{i}. **[{when}]** {content}")
+                ow = " *(outside window)*" if it.get("outside_window") else ""
+                lines.append(f"{i}. **[{when}]**{ow} {content}")
         else:
             lines.append("_brak work w tym widoku_")
         lines.append("")
+
+        recent = h.get("recent_done") or []
+        if recent:
+            lines.append("## Recent done (other active work)")
+            lines.append("")
+            for i, it in enumerate(recent, 1):
+                when = it.get("when") or "?"
+                content = (it.get("content") or "").strip()
+                lines.append(f"{i}. **[{when}]** {content}")
+            lines.append("")
 
         facts = h.get("key_facts") or []
         lines.append("## Key facts")
@@ -960,6 +1321,42 @@ class AgentMemory:
         else:
             lines.append("_brak factów w tym widoku_")
         lines.append("")
+
+        anchors = h.get("anchors") or []
+        if anchors and h.get("mode") in ("delta", "hybrid"):
+            lines.append("## Anchors (stable)")
+            lines.append("")
+            for i, it in enumerate(anchors[:6], 1):
+                when = it.get("when") or "?"
+                content = (it.get("content") or "").strip()
+                lines.append(f"{i}. **[{when}]** {content}")
+            lines.append("")
+
+        chronicle = h.get("chronicle") or []
+        if chronicle and h.get("mode") == "full":
+            lines.append("## Chronicle")
+            lines.append("")
+            for i, it in enumerate(chronicle, 1):
+                when = it.get("when") or "?"
+                content = (it.get("content") or "").strip()
+                lines.append(f"{i}. **[{when}]** {content}")
+            lines.append("")
+
+        rec = h.get("recommended_actions") or []
+        if rec:
+            lines.append("## Recommended actions")
+            lines.append("")
+            for a in rec:
+                lines.append(f"- {a}")
+            lines.append("")
+
+        mneme = h.get("suggested_mneme") or []
+        if mneme:
+            lines.append("## Suggested Mneme")
+            lines.append("")
+            for m in mneme:
+                lines.append(f"- `{m}`")
+            lines.append("")
 
         proto = h.get("agent_protocol") or []
         if proto:
@@ -987,18 +1384,21 @@ class AgentMemory:
             lines.append("")
 
         lines.append("---")
-        lines.append("_Źródło: `holon-agent-handoff-v1` → B7 markdown_")
+        lines.append("_Źródło: `holon-agent-handoff-v1` → B7 markdown (+ B10)_")
         lines.append("")
         return "\n".join(lines)
 
     def handoff_md(
         self,
         project: str = "",
-        max_work: int = 4,
-        max_facts: int = 8,
+        max_work: Optional[int] = None,
+        max_facts: Optional[int] = None,
         include_digest: bool = False,
         since=None,
         out_path: Optional[str] = None,
+        *,
+        compact: bool = False,
+        hybrid_since: Optional[bool] = None,
     ) -> str:
         """B7: handoff jako Markdown; opcjonalnie zapis do pliku.
 
@@ -1010,10 +1410,11 @@ class AgentMemory:
             max_facts=max_facts,
             include_digest=include_digest,
             since=since,
+            compact=compact,
+            hybrid_since=hybrid_since,
         )
         md = self.format_handoff_md(h)
         if out_path:
-            from pathlib import Path
             p = Path(out_path)
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(md, encoding="utf-8")
@@ -1188,13 +1589,23 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
-        "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "boot",
-        "crystallize", "watch-remember",
+        "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "close",
+        "boot", "crystallize", "watch-remember",
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
     p.add_argument("--fact", dest="as_fact", action="store_true")
     p.add_argument("--work", dest="as_work", action="store_true")
+    p.add_argument(
+        "--fact-text",
+        default="",
+        help="close: treść fact summary (osobno od flagi --fact)",
+    )
+    p.add_argument(
+        "--work-text",
+        default="",
+        help="close: treść work (alternatywa do positional text)",
+    )
     p.add_argument("--kind", default="", help="fact|work|note")
     p.add_argument("--top", type=int, default=8)
     p.add_argument("--path", default="holon_memory.json")
@@ -1206,10 +1617,24 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p.add_argument(
         "--since",
         default="",
-        help="handoff B1: tylko delty — 24h | 7d | 90m | godziny (np. 12)",
+        help="handoff B1/B10: okno delty — 24h | 7d | 90m | godziny (np. 12)",
     )
-    p.add_argument("--max-active", type=int, default=3,
-                   help="set-work / crystallize: ile work zostawić aktywnych")
+    p.add_argument(
+        "--strict-delta",
+        action="store_true",
+        help="handoff: wyłącz B10 hybrid (tylko work w oknie --since)",
+    )
+    p.add_argument(
+        "--compact",
+        action="store_true",
+        help="handoff: mniej tokenów (krótki protocol, ciaśniejsze limity)",
+    )
+    p.add_argument(
+        "--max-active",
+        type=int,
+        default=None,
+        help="set-work / close / crystallize: ile work zostawić (domyślnie 1)",
+    )
     p.add_argument("--dry-run", action="store_true",
                    help="crystallize: raport bez mutacji store")
     p.add_argument("--sim", type=float, default=None,
@@ -1253,18 +1678,23 @@ def _main(argv: Optional[List[str]] = None) -> int:
             boot_argv.extend(["--project", args.project])
         if args.since:
             boot_argv.extend(["--since", args.since])
+        if args.strict_delta:
+            boot_argv.append("--strict-delta")
+        if args.compact:
+            boot_argv.append("--compact")
         if not args.no_digest:
             boot_argv.append("--full")
         boot_argv.extend(["--path", args.path])
         return int(boot_main(boot_argv) or 0)
 
     if args.cmd == "handoff":
-        import json
         try:
             h = am.handoff(
                 project=args.project,
                 include_digest=not args.no_digest,
                 since=args.since or None,
+                compact=bool(args.compact),
+                hybrid_since=False if args.strict_delta else None,
             )
         except ValueError as e:
             print(f"handoff: {e}", file=sys.stderr)
@@ -1283,6 +1713,8 @@ def _main(argv: Optional[List[str]] = None) -> int:
                 include_digest=want_dig,
                 since=args.since or None,
                 out_path=args.out or None,
+                compact=bool(args.compact),
+                hybrid_since=False if args.strict_delta else None,
             )
         except ValueError as e:
             print(f"handoff-md: {e}", file=sys.stderr)
@@ -1294,7 +1726,6 @@ def _main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if args.cmd == "stats":
-        import json
         print(json.dumps(am.stats(), indent=2, ensure_ascii=False, default=str))
         return 0
 
@@ -1337,6 +1768,35 @@ def _main(argv: Optional[List[str]] = None) -> int:
         else:
             print(f"set-work id={item.id[:8]}… (bez zapisu)")
         return 0
+
+    if args.cmd == "close":
+        # B10: close --work-text "…" --fact-text "…" --project P
+        # albo: close "work text" --fact-text "…"
+        w = (args.work_text or "").strip() or (
+            args.text.strip() if not args.as_fact else ""
+        )
+        f = (args.fact_text or "").strip()
+        if args.as_fact and args.text.strip() and not f:
+            f = args.text.strip()
+        if args.as_work and args.text.strip() and not w:
+            w = args.text.strip()
+        try:
+            rep = am.close(
+                work=w,
+                fact=f,
+                project=args.project,
+                max_active=args.max_active,
+                save=not args.no_save,
+            )
+        except ValueError as e:
+            print(f"close: {e}", file=sys.stderr)
+            print(
+                'Użycie: close --work-text "…" --fact-text "…" --project P',
+                file=sys.stderr,
+            )
+            return 2
+        print(json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
 
     if args.cmd == "crystallize":
         import json as _json

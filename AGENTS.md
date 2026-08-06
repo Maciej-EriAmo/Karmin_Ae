@@ -1,6 +1,6 @@
 # AGENTS.md — ścieżka dla Grok / CLI (czytaj TO najpierw)
 
-> **Holon v5.12** — Plan B surface (boot · since · crystallize · handoff-md · lex · hooks · CI · ablation · Mneme).  
+> **Holon v5.13** — Plan B + B10 (boot · hybrid since · close · anchors · crystallize · handoff-md · Mneme).  
 > **Cudze chwalicie, swego nie znacie.**  
 > W tym workspace pamięć SE **już jest**: Holon + Mneme + handoff.  
 > Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.
@@ -21,11 +21,12 @@ python agent_boot.py --project Karmazyn
 python agent_boot.py --project Holon
 ```
 
-Re-boot / mniej tokenów (**B1** — tylko delty):
+Re-boot / mniej tokenów (**B1+B10** — delty facts + hybrid work spoza okna):
 
 ```bat
 python agent_boot.py --since 24h
 python agent_boot.py --since 24h --project Holon
+python agent_boot.py --compact --no-banner
 ```
 
 Tylko JSON (pipe):
@@ -36,7 +37,8 @@ python agent_boot.py --no-banner
 
 Alias Windows: `agent_boot.cmd` · PowerShell: `.\agent_boot.ps1`
 
-**Po bootcie:** kontekst = `active_work` + `key_facts` + `when`.  
+**Po bootcie:** kontekst = `active_work` + `anchors`/`key_facts` + `recommended_actions` + `when`.  
+Bez `--project`: last project z meta / `HOLON_DEFAULT_PROJECT`.  
 Nie zmyślaj „stanu projektu” z powietrza.
 
 ---
@@ -49,7 +51,8 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
 | **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |
 | **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |
-| **remember / set-work** | zapis fact/work | `python holon_agent_memory.py remember --fact "…"` |
+| **remember / set-work** | zapis fact/work (1 work domyślnie) | `python holon_agent_memory.py remember --fact "…"` |
+| **close** | B10 — koniec sesji work+fact | `python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P` |
 | **crystallize** | B9 — stałe ścieżki (merge/Φ) | `python holon_agent_memory.py crystallize [--project Holon]` |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
 | **eval** | reggresja | `python holon_agent_memory.py eval` |
@@ -68,11 +71,12 @@ Docs (głębiej):
 ## 2. Protokół w trakcie sesji
 
 ```text
-boot → (opcjonalnie) Mneme RECALL/NEAR/WALK
+boot → (opcjonalnie) suggested_mneme / RECALL/NEAR/WALK
      → praca w kodzie (Holon lub KarmazynOs — nie mylić)
      → HOLD fact / remember --fact   (trwałe)
-     → set-work / HOLD work          (aktywny wątek)
-     → crystallize [--project P]     (koniec / gdy store szumi)
+     → set-work / HOLD work          (1 aktywny wątek)
+     → close --work-text --fact-text (preferowane domknięcie)
+     → crystallize [--project P]     (gdy store szumi)
 ```
 
 ### Mneme (przykłady)

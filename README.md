@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-advanced-blue.svg)](docs/README.md)
 
 **Trwała, czasowa pamięć lokalna dla agenta SE (Grok/CLI) i sesji czatu EriAmo.**  
-**Wersja:** **v5.12.0** — Plan B surface SE (B1–B9).
+**Wersja:** **v5.13.0** — Plan B + B10 handoff projection (hybrid since · close · anchors).
 
 HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.  
 **Wartość codzienna:** fact · work · pastness · handoff · inject do promptu — bez GPU.
@@ -39,8 +39,10 @@ python holon_agent_memory.py seed          # raz / odswiezenie kotwic
 python -m holon_mneme --repl               # meta-jezyk + graf
 python holon_agent_memory.py remember --fact "[Holon] ..."
 python holon_agent_memory.py set-work "..." --project Karmazyn
+python holon_agent_memory.py close --work-text "..." --fact-text "..." --project Karmazyn
 python holon_agent_memory.py crystallize --project Holon   # B9 sciezki
-python agent_boot.py --since 24h                             # B1 delty
+python agent_boot.py --since 24h                             # B1+B10 hybrid
+python agent_boot.py --compact --no-banner
 python agent_boot.py --md --out handoff.md                   # B7 markdown
 python holon_agent_memory.py eval
 python holon_agent_memory.py ablation                       # B6 flat vs prism
@@ -53,6 +55,7 @@ mem = open_memory()  # Config.agent()
 print(mem.handoff(project="Karmazyn", include_digest=False, since="24h"))
 mem.remember("[Karmazyn] ...", kind="fact")
 mem.set_work("...", project="Karmazyn")
+mem.close(work="next ...", fact="summary ...", project="Karmazyn")  # B10
 mem.on_remember(lambda item, **kw: None)  # B4
 mem.crystallize(project="Holon")          # B9
 mem.save()
@@ -70,6 +73,7 @@ Patrz tez: [AGENTS.md](AGENTS.md) (kontrakt startowy).
 | [AGENTS.md](AGENTS.md) | Kontrakt startowy agenta |
 | [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Workflow SE end-to-end |
 | [docs/MEMORY_API.md](docs/MEMORY_API.md) | API + CLI + handoff schema |
+| [docs/B10_HANDOFF.md](docs/B10_HANDOFF.md) | B10 projection (hybrid · close · anchors) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektura zaawansowana |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model / Ollama / URL |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |

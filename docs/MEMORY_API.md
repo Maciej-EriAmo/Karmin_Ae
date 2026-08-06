@@ -10,12 +10,13 @@ mem: MemoryAPI = open_memory("holon_memory.json", profile="agent")
 
 | Metoda | Semantyka |
 |--------|-----------|
-| `remember(content, kind)` | `fact` \| `work` \| `note`; semantic merge / exact dedupe |
+| `remember(content, kind)` | `fact` \| `work` \| `note`; semantic merge / exact dedupe (`remember_merge_sim`) |
 | `recall(query, top_k)` | cosine + lexical boost + bonus flag |
 | `digest(..., project="")` | tekst SE z pastness + osią czasu |
-| `handoff(..., project="", since=None)` | JSON bootstrap; **B1** `since="24h"` → mode=delta |
+| `handoff(..., project="", since=None, compact=…, hybrid_since=…)` | JSON bootstrap; **B1** delta + **B10** hybrid/anchors/actions |
 | `handoff_md(..., out_path=None)` | **B7** ten sam handoff jako Markdown (+ opcjonalny plik) |
-| `set_work(content, project, max_active)` | work + demotion starych work→fact |
+| `set_work(content, project, max_active=None)` | work + demotion; domyślnie **1** aktywny (B10) |
+| `close(work=…, fact=…, project=…)` | **B10** atomowe domknięcie sesji + last_project |
 | `crystallize(project, dry_run=…)` | **B9** offline: merge near-dup, promote cluster→fact, demote work, wzmocnij Φ |
 | `on_remember(cb)` | **B4** hook po remember (add/merge) |
 | `save()` | JSON + KuRz dict |
@@ -44,18 +45,28 @@ Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 ## CLI
 
 ```bash
-python holon_agent_memory.py handoff [--project P] [--since 24h] [--no-digest]
+python holon_agent_memory.py handoff [--project P] [--since 24h] [--no-digest] [--compact] [--strict-delta]
 python holon_agent_memory.py handoff-md [--project P] [--since 24h] [--out handoff.md] [digest]
-python agent_boot.py [--project P] [--since 24h] [--full] [--md] [--out handoff.md]
+python agent_boot.py [--project P] [--since 24h] [--full] [--md] [--compact] [--strict-delta] [--all-projects]
 python holon_agent_memory.py digest [--project P]
 python holon_agent_memory.py remember "…" --fact|--work
-python holon_agent_memory.py set-work "…" --project P [--max-active 3]
-python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] [--max-active 3]
+python holon_agent_memory.py set-work "…" --project P [--max-active 1]
+python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P
+python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] [--max-active 1]
 python holon_agent_memory.py recall "…" [--project P]
 python holon_agent_memory.py ablation
 python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
 python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 ```
+
+### B10 — handoff projection
+
+Pełny opis: [B10_HANDOFF.md](B10_HANDOFF.md).
+
+- **Hybrid since:** `active_work` może zawierać work spoza okna (`outside_window`); `key_facts` nadal tylko w oknie.
+- **Warstwy:** `anchors` (stabilne), `chronicle` (log), `recommended_actions`, `suggested_mneme`.
+- **close:** jeden work + jeden fact summary + zapis meta `last_project`.
+- **Boot:** bez `--project` → `HOLON_DEFAULT_PROJECT` lub `*.meta.json`; `--compact` tnie tokeny.
 
 ### B2 — inverted lexical index
 

@@ -40,25 +40,45 @@ class MemoryAPI(Protocol):
     def handoff(
         self,
         project: str = "",
-        max_work: int = 4,
-        max_facts: int = 8,
+        max_work: Optional[int] = None,
+        max_facts: Optional[int] = None,
         include_digest: bool = True,
         since=None,
+        *,
+        compact: bool = False,
+        hybrid_since: Optional[bool] = None,
+        max_chronicle: Optional[int] = None,
     ) -> dict: ...
 
     def handoff_md(
         self,
         project: str = "",
-        max_work: int = 4,
-        max_facts: int = 8,
+        max_work: Optional[int] = None,
+        max_facts: Optional[int] = None,
         include_digest: bool = False,
         since=None,
         out_path: Optional[str] = None,
+        *,
+        compact: bool = False,
+        hybrid_since: Optional[bool] = None,
     ) -> str: ...
 
     def set_work(
-        self, content: str, project: str = "", max_active: int = 3
+        self,
+        content: str,
+        project: str = "",
+        max_active: Optional[int] = None,
     ) -> Item: ...
+
+    def close(
+        self,
+        *,
+        work: str = "",
+        fact: str = "",
+        project: str = "",
+        max_active: Optional[int] = None,
+        save: bool = True,
+    ) -> dict: ...
 
     def crystallize(
         self,

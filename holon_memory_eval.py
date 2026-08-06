@@ -198,7 +198,12 @@ def run_golden_eval() -> Dict[str, Any]:
             if tok_new in (it.content or ""):
                 it.created_at = time.time() - 0.5 * 3600  # 30 min temu
         hd = mem.handoff(project="Holon", include_digest=True, since="24h")
-        check("handoff_since_mode_delta", hd.get("mode") == "delta", str(hd.get("mode")))
+        # B10: mode delta|hybrid (hybrid gdy work spoza okna dopełnia active_work)
+        check(
+            "handoff_since_mode_delta",
+            hd.get("mode") in ("delta", "hybrid"),
+            str(hd.get("mode")),
+        )
         check("handoff_since_meta", isinstance(hd.get("since"), dict)
               and float(hd["since"].get("hours") or 0) == 24.0,
               str(hd.get("since")))
@@ -218,12 +223,103 @@ def run_golden_eval() -> Dict[str, Any]:
         check("parse_since_7d", abs(AgentMemory.parse_since("7d") - 168.0) < 1e-6)
         check("parse_since_90m", abs(AgentMemory.parse_since("90m") - 1.5) < 1e-6)
 
+        # B10: hybrid since — stary work spoza okna w active_work
+        tok_old_w = f"OLDWORK_{uuid.uuid4().hex[:6]}"
+        tok_new_w = f"NEWWORK_{uuid.uuid4().hex[:6]}"
+        mem.set_work(f"[Holon] stary work {tok_old_w}", project="Holon", max_active=5)
+        for it in mem.hm.store:
+            if tok_old_w in (it.content or "") and it.is_work:
+                it.created_at = time.time() - 72 * 3600
+        mem.set_work(f"[Holon] nowy work {tok_new_w}", project="Holon", max_active=5)
+        for it in mem.hm.store:
+            if tok_new_w in (it.content or "") and it.is_work:
+                it.created_at = time.time() - 0.2 * 3600
+        # tylko stary work w oknie pustym: przenieś nowy poza / usuń z okna
+        # scenariusz: brak work w 24h, jest stary → hybrid
+        for it in mem.hm.store:
+            if tok_new_w in (it.content or "") and it.is_work:
+                it.created_at = time.time() - 80 * 3600
+                it.is_work = False
+                it.is_fact = True
+        hh = mem.handoff(
+            project="Holon", include_digest=False, since="24h", hybrid_since=True
+        )
+        blob_w = " ".join(
+            (x.get("content") or "") for x in (hh.get("active_work") or [])
+        )
+        check(
+            "handoff_hybrid_fills_stale_work",
+            tok_old_w in blob_w and hh.get("mode") == "hybrid",
+            f"mode={hh.get('mode')} blob={blob_w[:180]}",
+        )
+        check(
+            "handoff_hybrid_marks_outside",
+            any(
+                x.get("outside_window")
+                for x in (hh.get("active_work") or [])
+                if tok_old_w in (x.get("content") or "")
+            ),
+            str(hh.get("active_work"))[:200],
+        )
+        hs = mem.handoff(
+            project="Holon", include_digest=False, since="24h", hybrid_since=False
+        )
+        blob_strict = " ".join(
+            (x.get("content") or "") for x in (hs.get("active_work") or [])
+        )
+        check(
+            "handoff_strict_delta_no_stale_work",
+            tok_old_w not in blob_strict and hs.get("mode") == "delta",
+            f"mode={hs.get('mode')} {blob_strict[:120]}",
+        )
+        check(
+            "handoff_has_recommended_actions",
+            isinstance(hh.get("recommended_actions"), list)
+            and len(hh.get("recommended_actions") or []) >= 1,
+            str(hh.get("recommended_actions"))[:120],
+        )
+        check(
+            "handoff_has_anchors",
+            isinstance(hh.get("anchors"), list),
+            str(type(hh.get("anchors"))),
+        )
+        # close + last_project
+        rep_c = mem.close(
+            work=f"close work {uuid.uuid4().hex[:6]}",
+            fact=f"close fact {uuid.uuid4().hex[:6]}",
+            project="Holon",
+            max_active=1,
+            save=True,
+        )
+        check("close_ok", rep_c.get("ok") is True and rep_c.get("work_id"), str(rep_c)[:160])
+        check("close_saved", rep_c.get("saved") is True, str(rep_c.get("saved")))
+        n_work_close = sum(
+            1 for i in mem.hm.store
+            if i.is_work and mem._match_project(i.content, "Holon")
+        )
+        check("close_max_active_one", n_work_close == 1, f"work={n_work_close}")
+        check(
+            "last_project_meta",
+            mem.read_last_project() == "Holon",
+            mem.read_last_project(),
+        )
+        # idempotent remember (merge)
+        t_merge = f"MERGEFACT_{uuid.uuid4().hex[:8]}"
+        a1 = mem.remember(f"[Holon] idempotent {t_merge} path A", kind="fact")
+        a2 = mem.remember(f"[Holon] idempotent {t_merge} path A", kind="fact")
+        check("remember_idempotent_same_id", a1.id == a2.id, f"{a1.id} vs {a2.id}")
+
         # B7: handoff → markdown
         md = mem.handoff_md(project="Holon", include_digest=False, since="24h")
         check("handoff_md_header", "# Holon agent handoff" in md, md[:80])
         check("handoff_md_has_work_or_facts_section",
               "## Active work" in md and "## Key facts" in md, md[:200])
-        check("handoff_md_mode_delta", "delta" in md.lower() or "`delta`" in md, md[:150])
+        check(
+            "handoff_md_mode_delta",
+            "delta" in md.lower() or "hybrid" in md.lower()
+            or "`delta`" in md or "`hybrid`" in md,
+            md[:150],
+        )
         from pathlib import Path as _P
         md_path = _P(td) / "handoff_out.md"
         md2 = mem.handoff_md(project="Holon", out_path=str(md_path))

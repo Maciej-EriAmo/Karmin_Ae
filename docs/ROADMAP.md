@@ -1,7 +1,7 @@
 # Roadmapa Holon (pamięć SE + silnik)
 
-**Wersja produktu:** **v5.12.0** (2026-08) — Plan B surface SE (B1–B9 bez B3b).  
-Poprzednia linia chat/silnik: v5.11.
+**Wersja produktu:** **v5.13.0** (2026-08) — Plan B + **B10** handoff projection.  
+Poprzednia: v5.12.0 (B1–B9); linia chat/silnik: v5.11.
 
 ## Cel nadrzędny
 
@@ -36,13 +36,15 @@ Holon ma być **najlepszą lokalną pamięcią partnera SE** (Grok/CLI): trwał�
 | B3b | Karmin RPC / świat `se_memory` (Cynober server) | 📋 po B3 lokalnym |
 | B8 | **Mneme** — meta-język + jawny graf SE (`docs/MNEME.md`, `holon_mneme.py`) | ✅ design+M1–M3 |
 | B9 | **Krystalizacja** — offline utrwalanie stałych ścieżek (`crystallize`) | ✅ v1 2026-08 |
+| B10 | **Handoff projection** — hybrid since, anchors/chronicle, close, compact, last-project | ✅ v5.13 2026-08 |
 
 ### Plan B — domknięcie (2026-08)
 
-Surface SE pod Grok/CLI: **B1–B9** (bez B3b).  
-Start: `agent_boot` · delty · md · crystallize · lex index · hooks/inbox · CI · ablation · Mneme · Karmin mirror.
+Surface SE pod Grok/CLI: **B1–B10** (bez B3b).  
+Start: `agent_boot` · hybrid delty · md · close · crystallize · lex · hooks · CI · ablation · Mneme · Karmin mirror.
 
-Otwarte w Plan B: tylko **B3b** (Karmin RPC / `se_memory`).
+Otwarte w Plan B: tylko **B3b** (Karmin RPC / `se_memory`).  
+Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 
 ## Plan C — research (nie blokuje SE)
 

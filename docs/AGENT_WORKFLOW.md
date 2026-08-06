@@ -25,8 +25,11 @@ cd C:\Users\drwis\holonOs
 python agent_boot.py
 # albo:
 python agent_boot.py --project Karmazyn
-# re-boot / mało tokenów (B1 — tylko delty z okna):
+# re-boot / mało tokenów (B1+B10 hybrid — facts w oknie, work może spoza):
 python agent_boot.py --since 24h --project Holon
+python agent_boot.py --compact --no-banner
+# czysta delta bez hybrid:
+python agent_boot.py --since 24h --strict-delta --project Holon
 # czytelny Markdown (B7):
 python agent_boot.py --md --project Holon
 python agent_boot.py --md --out handoff.md --since 24h
@@ -35,12 +38,14 @@ python agent_boot.py --no-banner
 ```
 
 To jest **kanoniczna** ścieżka agenta (AGENTS.md §0). `handoff` zostaje w API.  
-`--since 24h|7d|90m` → `mode=delta` (tylko wpisy z `created_at` w oknie).
+`--since 24h|7d|90m` → `mode=delta` lub **`hybrid`** (B10: last work spoza okna w `active_work`).
 
 Pola kluczowe w JSON:
 
-- `active_work` — co jest otwarte (max kilka)
-- `key_facts` — kotwice z pastness (`when`)
+- `active_work` — bieżący wątek (domyślnie max 2; hybrid może oznaczyć `outside_window`)
+- `key_facts` — w full=anchors; w delta=nowe w oknie
+- `anchors` / `chronicle` — kotwice vs log sesji (B10)
+- `recommended_actions` / `suggested_mneme` — co zrobić dalej
 - `agent_protocol` — reguły (nie resetuj store, prefiksy projektów)
 - `stats.delta_hours` — jak długa przerwa
 
@@ -49,22 +54,27 @@ Pola kluczowe w JSON:
 | Zdarzenie | Akcja |
 |-----------|--------|
 | Ustalenie trwałe („zawsze prawdziwe”) | `remember --fact "[Projekt] …"` |
-| Zmiana aktywnego celu | `set-work "…" --project X` |
-| Szybkie wyszukanie | `recall "hasło"` |
+| Zmiana aktywnego celu | `set-work "…" --project X` (domyślnie **1** aktywny) |
+| Domknięcie sesji (preferowane) | `close --work-text "…" --fact-text "…" --project X` |
+| Szybkie wyszukanie | `recall "hasło"` / `suggested_mneme` z handoff |
 | Pełny tekst do wklejenia | `digest --project X` |
 
 ### 3. Koniec sesji
 
-- Upewnij się, że ostatnie `remember`/`set-work` poszły z zapisem (domyślnie tak).
-- Nie zostawiaj 10× work o tym samym — `set-work` demotuje nadmiar do fact.
+- Preferuj **`close`** (atomowo work + fact + save + last_project).
+- Albo osobno `remember` / `set-work` (domyślnie zapis).
+- Nie zostawiaj 10× work o tym samym — `set-work` demotuje nadmiar do fact (max 1).
 - Gdy store „szumi” (duplikaty factów, za dużo work): **krystalizacja ścieżek**
+- Patrz też handoff `recommended_actions`.
 
 ```bash
+python holon_agent_memory.py close --work-text "next …" --fact-text "…" --project Holon
 python holon_agent_memory.py crystallize --dry-run --project Holon   # podgląd
 python holon_agent_memory.py crystallize --project Holon             # merge + Φ + save
 ```
 
-B9: `crystallize` nie zmyśla treści — scala near-dup, promuje stabilne klastry, demotuje nadmiar work, wzmacnia Φ.
+B9: `crystallize` nie zmyśla treści — scala near-dup, promuje stabilne klastry, demotuje nadmiar work, wzmacnia Φ.  
+B10: projekcja handoff — [B10_HANDOFF.md](B10_HANDOFF.md).
 
 ## Prefiksy multi-projekt
 

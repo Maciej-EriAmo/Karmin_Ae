@@ -1,6 +1,6 @@
 # Architektura Holon (zaawansowana, aktualna)
 
-**Wersja docs:** 2026-08-04 · **Kod:** v5.12.0 (Plan B SE surface)  
+**Wersja docs:** 2026-08-06 · **Kod:** v5.13.0 (Plan B + B10 handoff projection)  
 **Autor:** Maciej Mazur  
 
 > Starszy plik `holon_architecture.md` jest legacy; **ten dokument jest kanonem**.
