@@ -94,8 +94,28 @@ def main(argv=None) -> int:
 
     from holon_agent_memory import AgentMemory
 
-    mem_path = args.path
-    am = AgentMemory.open(memory_path=mem_path, profile="agent")
+    # settings: profile / memory_path (CLI --path wygrywa gdy inny niż default)
+    try:
+        from holon_settings import load_config, load_settings, resolve_memory_path
+
+        _settings = load_settings()
+        mem_path = resolve_memory_path(
+            cli_path=args.path if args.path != str(ROOT / "holon_memory.json") else None,
+            settings=_settings,
+            root=ROOT,
+        )
+        _cfg = load_config(profile="agent", settings=_settings)
+    except Exception:
+        mem_path = args.path
+        _cfg = None
+        _settings = None
+
+    am = AgentMemory.open(
+        memory_path=mem_path,
+        profile="agent",
+        cfg=_cfg,
+        use_settings=False,  # już załadowane wyżej
+    )
 
     project = (args.project or "").strip()
     project_source = "cli" if project else ""

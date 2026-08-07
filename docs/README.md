@@ -9,6 +9,7 @@ docs/
   MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
   B10_HANDOFF.md         ← B10 projection (hybrid since, anchors, close)
   ARCHITECTURE.md        ← moduły, przepływ, profile
+  CONFIGURE.md           ← konfigurator CLI/GUI, presetty, doctor
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu
   KARMIN_BRIDGE.md       ← Karmin_DB mirror (nie SQLite)

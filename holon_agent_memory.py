@@ -103,15 +103,31 @@ class AgentMemory:
         kurz_path: Optional[str] = None,
         profile: str = "agent",
         cfg: Optional[Config] = None,
+        *,
+        use_settings: bool = True,
     ) -> "AgentMemory":
+        # ścieżka z settings, gdy caller zostawił default
+        if use_settings and memory_path in ("", "holon_memory.json"):
+            try:
+                from holon_settings import resolve_memory_path
+
+                memory_path = resolve_memory_path(cli_path=None)
+            except Exception:
+                memory_path = memory_path or "holon_memory.json"
         if cfg is None:
-            p = (profile or "agent").strip().lower()
-            if p == "chat":
-                cfg = Config.chat()
-            elif p == "flat":
-                cfg = Config.flat(base="agent")
-            else:
-                cfg = Config.agent()
+            if use_settings:
+                try:
+                    cfg = Config.from_settings(profile=profile or "agent")
+                except Exception:
+                    cfg = None
+            if cfg is None:
+                p = (profile or "agent").strip().lower()
+                if p == "chat":
+                    cfg = Config.chat()
+                elif p == "flat":
+                    cfg = Config.flat(base="agent")
+                else:
+                    cfg = Config.agent()
         kurz = kurz_path or memory_path.replace(".json", "_kurz.json")
         emb = Embedder(dim=cfg.dim, dict_path=kurz, time_dim=cfg.time_dim)
         hm = HoloMem(emb, cfg, memory_path)
@@ -509,7 +525,7 @@ class AgentMemory:
             pass
 
     def read_last_project(self) -> str:
-        """Odczyt last_project z meta lub env ``HOLON_DEFAULT_PROJECT``."""
+        """Odczyt last_project: env → meta → ``holon_settings.json``."""
         env = (os.environ.get("HOLON_DEFAULT_PROJECT") or "").strip()
         if env:
             return env
@@ -518,7 +534,17 @@ class AgentMemory:
             if path.is_file():
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    return str(data.get("last_project") or "").strip()
+                    lp = str(data.get("last_project") or "").strip()
+                    if lp:
+                        return lp
+        except Exception:
+            pass
+        try:
+            from holon_settings import load_settings
+
+            sp = str(load_settings().get("default_project") or "").strip()
+            if sp:
+                return sp
         except Exception:
             pass
         return ""

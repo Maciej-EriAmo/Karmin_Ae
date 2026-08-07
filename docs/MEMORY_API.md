@@ -41,6 +41,7 @@ Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 | `Config.agent()` | 2160 h | 400 | on | AgentMemory |
 | `Config.flat()` | jak agent | … | **off** | ablacja / lab |
 | `Config.from_env()` | `HOLON_PROFILE` | | | env override |
+| `Config.from_settings()` | `holon_settings.json` + env | | | **konfigurator** CLI/GUI |
 
 ## CLI
 
@@ -57,7 +58,10 @@ python holon_agent_memory.py recall "…" [--project P]
 python holon_agent_memory.py ablation
 python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
 python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
+python holon_configure.py show | wizard | doctor | gui | use se-compact
 ```
+
+Konfigurator: [CONFIGURE.md](CONFIGURE.md).
 
 ### B10 — handoff projection
 

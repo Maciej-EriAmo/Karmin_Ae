@@ -54,6 +54,11 @@ python agent_boot.py --compact --no-banner
 python agent_boot.py --md --out handoff.md                   # B7 markdown
 python holon_agent_memory.py eval
 python holon_agent_memory.py ablation                       # B6 flat vs prism
+
+# === KONFIGURATOR (profile / handoff / LLM / doctor) ===
+python holon_configure.py wizard
+python holon_configure.py doctor
+python holon_configure.py gui                               # okienko tkinter
 ```
 
 ```python
@@ -87,6 +92,7 @@ Patrz tez: [AGENTS.md](AGENTS.md) (kontrakt startowy).
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |
 | [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie** Karmin_Ae) |
 | [docs/MNEME.md](docs/MNEME.md) | Mneme-L (meta-język SE) |
+| [docs/CONFIGURE.md](docs/CONFIGURE.md) | Konfigurator CLI + GUI + doctor |
 
 ---
 

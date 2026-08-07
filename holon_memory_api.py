@@ -99,10 +99,14 @@ def open_memory(
     *,
     profile: str = "agent",
     kurz_path: Optional[str] = None,
+    use_settings: bool = True,
 ) -> MemoryAPI:
-    """Fabryka: domyślnie AgentMemory + Config.agent()|chat()|flat()."""
+    """Fabryka: AgentMemory + Config z settings/env (profil agent|chat|flat)."""
     from holon_agent_memory import AgentMemory
 
     return AgentMemory.open(
-        memory_path=memory_path, kurz_path=kurz_path, profile=profile
+        memory_path=memory_path,
+        kurz_path=kurz_path,
+        profile=profile,
+        use_settings=use_settings,
     )

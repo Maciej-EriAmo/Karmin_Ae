@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "profile": "agent",
+  "preset": "se",
+  "default_project": "Holon",
+  "memory_path": "holon_memory.json",
+  "overrides": {
+    "handoff_max_facts": 6,
+    "handoff_max_work": 2,
+    "llm_backend": "auto",
+    "llm_model": "",
+    "llm_base_url": ""
+  },
+  "notes": "Skopiuj do holon_settings.json lub: python holon_configure.py wizard"
+}

@@ -46,6 +46,12 @@ Start: `agent_boot` · hybrid delty · md · close · crystallize · lex · hook
 Otwarte w Plan B: tylko **B3b** (Karmin RPC / `se_memory`).  
 Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 
+## Plan B+ — product surface (2026-08)
+
+| # | Deliverable | Status |
+|---|-------------|--------|
+| B11 | **Konfigurator** CLI + GUI + doctor (presety SE, `holon_settings.json`) | ✅ 2026-08 |
+
 ## Plan C — research (nie blokuje SE)
 
 - Ablacje HRR / Φ w paper-style (smoke B6 już w CLI)  

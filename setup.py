@@ -73,6 +73,8 @@ setup(
         "holon_lexindex",
         "holon_remember_watch",
         "holon_backend_karmin",
+        "holon_settings",
+        "holon_configure",
         "agent_boot",
         "prompt_scanner",
         "web_extractor",
@@ -107,6 +109,7 @@ setup(
     entry_points={
         "console_scripts": [
             "holon=main:main",
+            "holon-configure=holon_configure:main",
         ],
     },
     

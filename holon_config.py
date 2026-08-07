@@ -159,7 +159,11 @@ class Config:
 
     @classmethod
     def from_env(cls, default_profile: str = "chat") -> "Config":
-        """HOLON_PROFILE=agent|chat|flat + opcjonalne LLM_* z env."""
+        """HOLON_PROFILE=agent|chat|flat + opcjonalne LLM_* z env.
+
+        Preferuj ``from_settings()`` gdy istnieje ``holon_settings.json``
+        (CLI/GUI: ``python holon_configure.py``).
+        """
         prof = (os.environ.get("HOLON_PROFILE") or default_profile).strip().lower()
         if prof == "agent":
             c = cls.agent()
@@ -182,3 +186,21 @@ class Config:
         if os.environ.get("HOLON_LLM_API_KEY"):
             c.llm_api_key = os.environ["HOLON_LLM_API_KEY"].strip()
         return c
+
+    @classmethod
+    def from_settings(
+        cls,
+        default_profile: str = "agent",
+        *,
+        profile: Optional[str] = None,
+        settings_path: Optional[str] = None,
+    ) -> "Config":
+        """Config z ``holon_settings.json`` (+ env LLM). Lazy import settings."""
+        from holon_settings import load_config
+
+        return load_config(
+            profile=profile,
+            default_profile=default_profile,
+            settings_path=settings_path,
+            apply_env=True,
+        )

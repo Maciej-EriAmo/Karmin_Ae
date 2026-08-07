@@ -31,7 +31,7 @@ class Session:
                  llm_client: Optional["ChatClient"] = None):
         self.system = system or self.DEFAULT_SYSTEM
         # Profil produktowy (chat), nie agent — jawny rozdział
-        cfg_ = cfg or Config.from_env(default_profile="chat")
+        cfg_ = cfg or Config.from_settings(default_profile="chat")
         self._client = llm_client or build_llm_client(
             api_key=api_key if api_key is not None else (cfg_.llm_api_key or None),
             model=model or (cfg_.llm_model or None),

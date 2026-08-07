@@ -13,6 +13,11 @@ holon_memory.rescue.json
 holon_memory*.json
 !holon_memory.example.json
 
+# --- Ustawienia lokalne (LLM keys / preferencje; konfigurator) ---
+holon_settings.json
+holon_settings.*.json
+!holon_settings.example.json
+
 # Słownik KuRz / embedding dict (tożsamość wektorowa)
 *_kurz.json
 holon_memory_kurz.json
