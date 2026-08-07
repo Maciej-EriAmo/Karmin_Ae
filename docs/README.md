@@ -11,6 +11,7 @@ docs/
   MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
   B10_HANDOFF.md         ← B10 projection (hybrid since, anchors, close)
   ARCHITECTURE.md        ← moduły, przepływ, profile
+  AII_PROTO_EMOTIONS.md  ← proto-emocje AII (kod + grupa docelowa)
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu
   KARMIN_BRIDGE.md       ← Karmin_DB mirror (nie SQLite)
@@ -73,5 +74,6 @@ Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · configure: [CONFIGURE
 | **Pamięć SE / Grok** | `agent_boot`, `holon_agent_memory`, MemoryAPI | `Config.agent()` / settings |
 | **Panel człowieka** | `START.cmd`, `karmin_app.py` | GUI |
 | **Chat EriAmo** | `main.py`, `Session` | `Config.chat()` |
+| **Proto-emocje (AII)** | `holon_aii` w tle; inject w chat | [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md) |
 
-Silnik (`HoloMem`, Φ, HRR) jest wspólny; **kontrakty użytkownika są rozdzielone**.
+Silnik (`HoloMem`, Φ, HRR, **AII**) jest wspólny; **kontrakty użytkownika są rozdzielone**.

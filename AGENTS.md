@@ -5,7 +5,9 @@
 > **Cudze chwalicie, swego nie znacie.**  
 > W tym workspace pamięć SE **już jest**: Karmin_Ae / Holon engine + handoff.  
 > Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.  
-> **Karmin_Ae ≠ Karmin_DB** (skarbiec).
+> **Karmin_Ae ≠ Karmin_DB** (skarbiec).  
+> **AII / proto-emocje** działają w tle (focus, vacuum, spokój) — nie recytuj ich; treść SE = work/facts.  
+> Docs: [docs/AII_PROTO_EMOTIONS.md](docs/AII_PROTO_EMOTIONS.md).
 
 ### KANON (nie myl torów)
 

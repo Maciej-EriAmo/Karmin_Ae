@@ -1,6 +1,6 @@
 # Architektura Holon (zaawansowana, aktualna)
 
-**Wersja docs:** 2026-08-06 · **Kod:** v5.13.0 (Plan B + B10 handoff projection)  
+**Wersja docs:** 2026-08-07 · **Kod:** v5.13+ (B10 handoff · B11/B12 surface · compact default)  
 **Autor:** Maciej Mazur  
 
 > Starszy plik `holon_architecture.md` jest legacy; **ten dokument jest kanonem**.
@@ -10,20 +10,21 @@
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Surface                                                    │
-│   Agent CLI: holon_agent_memory / MemoryAPI / handoff       │
-│   Chat:      main.py → Session → HoloMem.turn → LLM         │
+│   Agent:  agent_boot / MemoryAPI / handoff (compact)        │
+│   Human:  START.cmd / karmin_app                            │
+│   Chat:   main*.py → Session → HoloMem.turn → LLM           │
 ├────────────────────────────────────────────────────────────┤
 │  Cognition engine                                           │
-│   HoloMem: encode, recall window, vacuum, Φ update, AII     │
-│   Agent: crystallize (B9) — offline stałe ścieżki store/Φ   │
-│   Prompts: pastness, temporal block, internal state         │
+│   HoloMem: encode, recall, vacuum, Φ, AII (proto-emocje)    │
+│   Agent: crystallize (B9) — stałe ścieżki store/Φ           │
+│   Prompts: pastness, temporal, STAN WEWNĘTRZNY (tło)        │
 ├────────────────────────────────────────────────────────────┤
 │  Representation (optional sophistication)                   │
 │   HRR bind/unbind · PrismRouter · time_embed · Φ levels     │
 │   Ablation: Config.flat() → use_prism=False                 │
 ├────────────────────────────────────────────────────────────┤
 │  Persistence                                                │
-│   PersistentMemory JSON · durable flags · coherence check   │
+│   PersistentMemory JSON · durable flags · aii dict          │
 ├────────────────────────────────────────────────────────────┤
 │  LLM slot (optional)                                        │
 │   ChatClient · Ollama / URL / factory / mock                │
@@ -32,6 +33,14 @@
 │   HSS papers · holon_fs · security/holo/*.c — poza SE       │
 └────────────────────────────────────────────────────────────┘
 ```
+
+### Proto-emocje (AII) — skrót architektoniczny
+
+**Cel produktowy:** cichy reżim uwagi i tonu (często „nieuświadomiony”), nie teatr emocji.  
+**Focus** ułatwia pracę w skupieniu; **baseline** gasi napięcie po przerwie; **neutral** = spokój bez afektu na pokaz.  
+**Grupa docelowa:** partner SE + sesja EriAmo — milejsza ciągłość komunikacji; nie dashboard afektu.
+
+Pełny opis (pola, update, inject, granice): **[AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md)**.
 
 ## Moduły (mapa plików)
 
@@ -80,8 +89,9 @@ Session(Config.chat)
 
 1. **Pastness** — etykiety „X temu” z `created_at`.  
 2. **Wake** — komunikat po przerwie; spójność Φ w tle.  
-3. **Baseline AII** — `relax_toward_baseline` po długiej ciszy.  
-4. **Durable vs episodic** — fact/work nie znikają z decay godzin.
+3. **Baseline AII** — `relax_toward_baseline` po długiej ciszy (habituation vacuum/focus).  
+4. **Durable vs episodic** — fact/work nie znikają z decay godzin.  
+5. **Proto-emocje w tle** — `AIIState.update` z treści tury; inject w chat, wagi w HoloMem; nie recytować w UI.
 
 ## Bezpieczeństwo granic
 

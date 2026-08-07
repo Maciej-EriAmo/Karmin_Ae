@@ -13,13 +13,26 @@
 - **fact** — trwałe ustalenia (nie wygasają z „decay godzin”),
 - **work** — aktywny wątek (domyślnie 1),
 - **handoff** — JSON/MD z kontekstem na start sesji agenta,
+- **proto-emocje (AII)** — cichy reżim w tle (focus, napięcie, spokój),
 - **bez chmury** — pliki u Ciebie; nie Mem0/SaaS.
 
 | Plik | Znaczenie |
 |------|-----------|
-| `holon_memory.json` | **stan umysłu** (fakty, work) — nie commituj |
+| `holon_memory.json` | **stan umysłu** (fakty, work, **aii**) — nie commituj |
 | `holon_settings.json` | **preferencje** (profil, projekt, język, LLM) — nie commituj |
 | `AGENTS.md` | kontrakt **dla agenta** |
+
+### Proto-emocje w skrócie (dla Ciebie)
+
+Nie ustawiasz „smutku suwakiem”. Silnik Holona trzyma w tle stan **AII** (`emotion`, `vacuum_signal`, `focus`):
+
+- działa **często nieuświadomie** — nie jest tematem rozmowy,
+- przy **focus** (kod/debug) łatwiej trzymać skupienie i jeden wątek,
+- po długiej przerwie **wraca do spokoju** (nie trzyma alarmu wiecznie),
+- w czacie EriAmo lekko barwi ton (**milej się rozmawia**), bez teatralnego afektu.
+
+To **boost klimatu współpracy**, nie funkcja do klikiwania w panelu.  
+Pełny opis (kod + grupa docelowa): **[AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md)**.
 
 ---
 
@@ -88,7 +101,8 @@ python karmin_app.py -c "fact [Holon] z linii"
 
 ### Chat / brainstorm (ukłon dla zapominalskich)
 
-Rozmowa z EriAmo (LLM) to **osobny tor** od agenta SE — ale pamięć jest **wspólna** (`holon_memory.json`).
+Rozmowa z EriAmo (LLM) to **osobny tor** od agenta SE — ale pamięć jest **wspólna** (`holon_memory.json`), w tym stan **AII** (proto-emocje w tle: focus, spokój, vacuum).  
+Tu najbardziej widać „lekki boost” tonu — w torze SE dominuje handoff (fact/work).
 
 | Jak | Co robi |
 |-----|---------|
@@ -176,8 +190,11 @@ Kolejność: `--lang` → `HOLON_UI_LANG` → `ui_lang` w settings → **pl**.
 
 ## 7. FAQ
 
+**Q: Gdzie ustawiam emocje agenta?**  
+A: Nigdzie ręcznie. **Proto-emocje (AII)** aktualizują się w tle z rozmowy i czasu. To nie jest skórka czatu — [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md).
+
 **Q: Gdzie jest moja pamięć?**  
-A: `holon_memory.json` w katalogu repo. Backup = kopia pliku (nie gita).
+A: `holon_memory.json` w katalogu repo (fakty, work, **aii**). Backup = kopia pliku (nie gita).
 
 **Q: Zepsułem settings — co resetować?**  
 A: Usuń `holon_settings.json` albo skopiuj `holon_settings.example.json`. **Nie** kasuj `holon_memory.json` bez prośby.
@@ -198,6 +215,7 @@ A: To **skarbiec / mirror**, nie primary SE. [KARMIN_BRIDGE.md](KARMIN_BRIDGE.md
 | Doc | Rola |
 |------|------|
 | **Ten plik** | instrukcja człowieka |
+| [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md) | proto-emocje: kod + grupa docelowa |
 | [CONFIGURE.md](CONFIGURE.md) | konfigurator, presety, doctor, język |
 | [AGENTS.md](../AGENTS.md) | obowiązkowy start **agenta** |
 | [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | workflow SE end-to-end |

@@ -14,6 +14,14 @@ Utrzymać **ciągłość między sesjami** Grok/CLI bez wklejania całej histori
 **Nie** zastępuj bootu otwarciem GUI. GUI jest dla operatora; Ty konsumujesz **handoff JSON**.  
 Szybki stan: `python karmin_app.py --status` lub `python holon_agent_memory.py status`.
 
+### Proto-emocje (AII) — tło, nie treść handoffu
+
+Stan `aii` (emotion / vacuum / focus) żyje w silniku i w `holon_memory.json`.  
+W torze SE **pierwszeństwo ma** active_work + facts + `recommended_actions` (compact).  
+AII reguluje w tle wagi i — w chat — ton (`format_internal_state`); **nie recytuj emocji**, chyba że user pyta.  
+Gdy focus jest aktywny: trzymaj **1 work**, nie rozjeżdżaj wątku.  
+Opis: [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md).
+
 ## Protokół sesji
 
 ```

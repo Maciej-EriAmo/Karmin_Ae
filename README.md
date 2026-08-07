@@ -12,7 +12,8 @@
 > Katalog i repo: **Karmin_Ae**. Pliki `holon_*` mogą zostać.
 
 HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.  
-**Wartość codzienna:** fact · work · pastness · handoff · inject do promptu — bez GPU.
+**Wartość codzienna:** fact · work · pastness · handoff · inject do promptu — bez GPU.  
+**W tle:** proto-emocje AII (focus, vacuum, spokój) — cichy boost tonu i skupienia, nie teatr; [docs/AII_PROTO_EMOTIONS.md](docs/AII_PROTO_EMOTIONS.md).
 
 ---
 
@@ -129,6 +130,7 @@ Pełny opis: [docs/CONFIGURE.md](docs/CONFIGURE.md) · instrukcja człowieka: [d
 | Doc | Opis |
 |------|------|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | **Instrukcja obsługi (człowiek / GUI)** |
+| [docs/AII_PROTO_EMOTIONS.md](docs/AII_PROTO_EMOTIONS.md) | Proto-emocje AII — kod + grupa docelowa |
 | [docs/CONFIGURE.md](docs/CONFIGURE.md) | Control Center + konfigurator + język PL/EN |
 | [docs/README.md](docs/README.md) | Indeks docs |
 | [AGENTS.md](AGENTS.md) | Kontrakt startowy **agenta** |
