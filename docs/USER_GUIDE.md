@@ -23,7 +23,7 @@
 
 ---
 
-## 2. Pierwszy start
+## 2. Pierwszy start (KANON)
 
 ```bat
 cd C:\Users\drwis\Karmin_Ae
@@ -31,10 +31,14 @@ pip install -r requirements.txt
 START.cmd
 ```
 
-Albo: `python karmin_app.py`
+| Potrzeba | Start |
+|----------|--------|
+| Panel (codzień) | `START.cmd` |
+| Chat / brainstorm | `START_CHAT.cmd` lub przycisk w panelu |
+| Agent SE (Grok) | `python agent_boot.py` |
 
-Jeśli brak okienka (tkinter):  
-`python holon_configure.py wizard` (terminal) → potem agent: `python agent_boot.py`.
+Albo: `python karmin_app.py`.  
+Brak okienka (tkinter): `python holon_configure.py wizard` (**advanced**).
 
 ---
 
@@ -46,15 +50,69 @@ Jeśli brak okienka (tkinter):
 | **Sesja SE** | Podgląd **handoff** (to samo, co agent po bootcie). Projekt, `--since` (np. 24h). **Załaduj handoff** / **Zapisz handoff.md**. |
 | **Pamięć** | Bez CLI: **fact**, **work**, **close** (summary + next work), **krystalizuj**. |
 | **Ustawienia** | Preset (`se` / `se-compact` / …), domyślny projekt, język PL/EN. **Zapisz**. Zaawansowane: „CLI configure…”. |
+| **Konsola** | Historia poleceń; pełny log |
 | **Pomoc** | Skrót torów człowiek vs agent. |
+
+### Linia poleceń (hybryda CLI w GUI)
+
+Na **dole panelu** jest pole:
+
+```text
+Polecenie › fact [Holon] notatka
+```
+
+Enter / **Wykonaj**. Strzałki ↑↓ = historia.
+
+To jest „linia komend” bez PowerShella — dla osób, które wolą pisać polecenia niż klikać formularze (skrypty `.md` dla AI to inna sprawa; tu wydajesz komendy **sobie**).
+
+| Polecenie | Efekt |
+|-----------|--------|
+| `help` | lista komend |
+| `status [projekt]` | stan work/fakty/doctor |
+| `fact …` | zapisz fact |
+| `work …` | ustaw work |
+| `boot [--project P] [--since 24h]` | handoff jak agent |
+| `handoff` / `handoff-md` | podgląd / plik |
+| `close fact=… work=…` | domknięcie sesji |
+| `crystallize` · `doctor` · `recall …` | jak w CLI |
+| `use se-compact` | preset |
+| `! python agent_boot.py …` | surowy subprocess w repo |
+
+Bez GUI (jednorazowo):
+
+```bat
+python karmin_app.py -c "help"
+python karmin_app.py -c "status Holon"
+python karmin_app.py -c "fact [Holon] z linii"
+```
+
+### Chat / brainstorm (ukłon dla zapominalskich)
+
+Rozmowa z EriAmo (LLM) to **osobny tor** od agenta SE — ale pamięć jest **wspólna** (`holon_memory.json`).
+
+| Jak | Co robi |
+|-----|---------|
+| Przycisk **Chat / brainstorm** na Start | nowe okno → `main_aware.py` |
+| Polecenie `chat` / `brainstorm` | to samo |
+| `chat aware` · `chat basic` · `chat secure` | warianty |
+| Dwuklik **`START_CHAT.cmd`** | od razu czat, bez panelu |
+
+```bat
+python karmin_app.py -c "chat"
+START_CHAT.cmd
+python main_aware.py
+```
+
+W oknie czatu: `quit` kończy. **Agent SE** nadal: `python agent_boot.py` (nie mylić z burzą mózgów).
 
 ### Typowy dzień (człowiek)
 
 1. `START.cmd`  
 2. Zakładka **Start** → czy work/fakty mają sens  
-3. Po pracy w agentcie (lub ręcznie): **Pamięć** → close / fact  
-4. Gdy store „szumi”: **Krystalizuj**  
-5. Od czasu do czasu: **Doctor**
+3. Burza mózgów: **Chat / brainstorm** (osobne okno)  
+4. Po pracy w agentcie (lub ręcznie): **Pamięć** / linia poleceń → close / fact  
+5. Gdy store „szumi”: **Krystalizuj**  
+6. Od czasu do czasu: **Doctor**
 
 ### Czego nie robić w GUI zamiast agenta
 

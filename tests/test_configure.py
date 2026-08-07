@@ -87,6 +87,26 @@ class TestSettings(unittest.TestCase):
         self.assertIn("stats", st)
         self.assertIn("doctor_score", st)
 
+    def test_run_line_help_and_status(self):
+        from karmin_app import run_line
+
+        h = run_line("help")
+        self.assertTrue(h["ok"])
+        self.assertIn("fact", h["output"])
+        self.assertIn("chat", h["output"].lower())
+        s = run_line("status Holon", project="Holon")
+        self.assertTrue(s["ok"])
+        self.assertIn("doctor=", s["output"])
+
+    def test_launch_chat_mode_map(self):
+        from karmin_app import CHAT_MODES, launch_chat
+
+        self.assertIn("brainstorm", CHAT_MODES)
+        self.assertTrue((__import__("pathlib").Path("main_aware.py")).is_file())
+        # invalid mode does not spawn
+        bad = launch_chat("no-such-mode")
+        self.assertFalse(bad["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

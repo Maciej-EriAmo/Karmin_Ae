@@ -16,6 +16,18 @@ HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.
 
 ---
 
+## KANON startu (tylko to na co dzień)
+
+| Kto | Komenda |
+|-----|---------|
+| **Człowiek** | `START.cmd` |
+| **Chat / brainstorm** | `START_CHAT.cmd` (albo przycisk w panelu) |
+| **Agent SE** | `python agent_boot.py` |
+
+Reszta (configure, Mneme, eval, power CLI) = **advanced** — niżej i w [docs/](docs/README.md).
+
+---
+
 ## Kanon (warstwy)
 
 | Warstwa | Wejście | Status |
@@ -32,21 +44,7 @@ Szczegóły: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Agent: **[AGENT
 
 ---
 
-## Dwa tory (celowo)
-
-| Kto | Norma | Start |
-|-----|--------|--------|
-| **Człowiek** | GUI (nie CLI) | **`START.cmd`** albo `python karmin_app.py` |
-| **Agent SE (Grok)** | CLI / JSON | **`python agent_boot.py`** · [AGENTS.md](AGENTS.md) |
-| **Power-user** | CLI jak lubisz | `holon_configure`, `holon_agent_memory`, Mneme |
-
-CLI nie znika — jest dla Ciebie i dla agenta. **Dla typowego użytkownika norma to panel**, nie terminal.
-
----
-
 ## Quick start
-
-### 1) Człowiek (Control Center)
 
 ```bat
 cd C:\Users\drwis\Karmin_Ae
@@ -54,31 +52,24 @@ pip install -r requirements.txt
 START.cmd
 ```
 
-Panel: **Start** (stan, doctor) · **Sesja SE** (handoff jak agent) · **Pamięć** (fact/work/close) · **Ustawienia** · **Pomoc**.  
-Instrukcja krok po kroku: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
+- Panel: Start · Sesja · Pamięć · Konsola · Ustawienia · linia poleceń na dole.  
+- Pełna instrukcja człowieka: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.  
+- Agent: **[AGENTS.md](AGENTS.md)**.
 
-### 2) Agent SE (jedna komenda)
+### Advanced (power-user / agent)
 
 ```bat
-python agent_boot.py
 python agent_boot.py --project Karmazyn
 python agent_boot.py --since 24h --compact --no-banner
 python karmin_app.py --status
-```
-
-### 3) Power-user CLI
-
-```bat
-python holon_agent_memory.py seed
-python -m holon_mneme --repl
-python holon_agent_memory.py remember --fact "[Holon] ..."
-python holon_agent_memory.py set-work "..." --project Karmazyn
-python holon_agent_memory.py close --work-text "..." --fact-text "..." --project Karmazyn
+python karmin_app.py -c "help"
 python holon_agent_memory.py crystallize --project Holon
 python holon_agent_memory.py eval
 python holon_configure.py help
-python holon_configure.py gui
+python -m holon_mneme --repl
 ```
+
+`holon_configure` = **advanced** settings (presety/doctor/env); codzienność = Control Center (`START.cmd`).
 
 ```python
 from holon_memory_api import open_memory

@@ -7,12 +7,13 @@
 > Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.  
 > **Karmin_Ae ≠ Karmin_DB** (skarbiec).
 
-### Dwa tory (nie myl)
+### KANON (nie myl torów)
 
 | Kto | Start | Nie rób |
 |-----|--------|---------|
 | **Ty (agent)** | `python agent_boot.py` | Nie otwieraj GUI zamiast boot |
-| **Człowiek** | `START.cmd` / `python karmin_app.py` | Nie musi znać CLI |
+| **Człowiek** | `START.cmd` | Nie musi znać CLI |
+| **Chat / brainstorm** | `START_CHAT.cmd` / panel | To nie jest boot SE |
 
 Handoff JSON zawiera pole **`surfaces`**: `agent` vs `human`.  
 Szybki stan: `python karmin_app.py --status` albo `python holon_agent_memory.py status`.

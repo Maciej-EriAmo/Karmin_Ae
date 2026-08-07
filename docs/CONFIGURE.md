@@ -39,7 +39,11 @@ python karmin_app.py --status --project Holon
 | Sesja SE | handoff JSON, filtr projektu / since, zapis `handoff.md`, podgląd boot |
 | Pamięć | remember fact, set-work, close, crystallize |
 | Ustawienia | preset, default_project, ui_lang; link do configure GUI |
+| Konsola | log poleceń |
 | Pomoc | skrót torów |
+
+**Linia poleceń** na dole okna: `help` · `fact …` · `work …` · `boot` · `status` · …  
+Jednorazowo: `python karmin_app.py -c "status Holon"`.
 
 Entry point setuptools: `karmin-ae` → `karmin_app:main`.
 

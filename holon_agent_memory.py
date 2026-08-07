@@ -1611,7 +1611,16 @@ class AgentMemory:
         }
 
 
+def _configure_stdio_utf8() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except Exception:
+            pass
+
+
 def _main(argv: Optional[List[str]] = None) -> int:
+    _configure_stdio_utf8()
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "status", "collab-test", "eval",

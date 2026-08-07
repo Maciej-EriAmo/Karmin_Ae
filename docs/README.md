@@ -20,42 +20,33 @@ README.md                ← landing
 START.cmd                ← dwuklik → Control Center (człowiek)
 ```
 
-## Szybki start (dwa tory)
+## KANON startu
 
-### Człowiek (norma = GUI)
+| Kto | Komenda |
+|-----|---------|
+| **Człowiek** | `START.cmd` → [USER_GUIDE.md](USER_GUIDE.md) |
+| **Chat / brainstorm** | `START_CHAT.cmd` |
+| **Agent SE** | `python agent_boot.py` → [AGENTS.md](../AGENTS.md) |
+
+## Szybki start
 
 ```bat
 pip install -r requirements.txt
 START.cmd
-rem albo: python karmin_app.py
 ```
 
-→ [USER_GUIDE.md](USER_GUIDE.md)
-
-### Agent SE
+### Advanced
 
 ```bat
-python agent_boot.py
-python agent_boot.py --project Karmazyn
 python agent_boot.py --since 24h --compact --no-banner
 python karmin_app.py --status
-```
-
-→ [AGENTS.md](../AGENTS.md) · [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md)
-
-### Power-user CLI
-
-```bat
-python holon_agent_memory.py seed
-python holon_agent_memory.py handoff --no-digest
-python holon_agent_memory.py handoff --since 24h
-python holon_agent_memory.py handoff-md --out handoff.md
-python holon_agent_memory.py close --work-text "…" --fact-text "…" --project Holon
-python holon_agent_memory.py crystallize --dry-run
-python holon_agent_memory.py ablation
+python holon_agent_memory.py crystallize --project Holon
 python holon_agent_memory.py eval
 python holon_configure.py help
+python -m holon_mneme --repl
 ```
+
+Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · configure: [CONFIGURE.md](CONFIGURE.md).
 
 ## Plan B / B+ (SE surface) — status
 

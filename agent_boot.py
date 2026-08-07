@@ -38,7 +38,32 @@ if str(ROOT) not in sys.path:
 os.chdir(ROOT)
 
 
+def _configure_stdio_utf8() -> None:
+    """Windows cp1250/cp852 kruszy się na „…” / PL w JSON — UTF-8 + replace."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except Exception:
+            pass
+
+
+def _safe_out(text: str, *, end: str = "\n") -> None:
+    """Print odporny na UnicodeEncodeError (konsola Windows)."""
+    try:
+        sys.stdout.write(text + end)
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        raw = (text + end).encode(enc, errors="replace")
+        try:
+            sys.stdout.buffer.write(raw)
+            sys.stdout.buffer.flush()
+        except Exception:
+            sys.stdout.write(text.encode("ascii", errors="replace").decode("ascii") + end)
+
+
 def main(argv=None) -> int:
+    _configure_stdio_utf8()
     p = argparse.ArgumentParser(description="Holon SE session boot for agent")
     p.add_argument(
         "--project",
@@ -141,7 +166,7 @@ def main(argv=None) -> int:
             elif args.out and args.no_banner:
                 pass
             else:
-                sys.stdout.write(md if md.endswith("\n") else md + "\n")
+                _safe_out(md if md.endswith("\n") else md)
             return 0
         handoff = am.handoff(
             project=project,
@@ -211,13 +236,15 @@ def main(argv=None) -> int:
         "agent": {
             "boot": "python agent_boot.py",
             "contract": "AGENTS.md",
-            "remember": "python holon_agent_memory.py remember --fact \"…\"",
-            "set_work": "python holon_agent_memory.py set-work \"…\"",
-            "close": "python holon_agent_memory.py close --work-text \"…\" --fact-text \"…\"",
+            "remember": 'python holon_agent_memory.py remember --fact "..."',
+            "set_work": 'python holon_agent_memory.py set-work "..."',
+            "close": 'python holon_agent_memory.py close --work-text "..." --fact-text "..."',
             "status_json": "python karmin_app.py --status",
+            "chat_brainstorm": "python karmin_app.py -c chat",
         },
         "human": {
             "gui": "START.cmd  OR  python karmin_app.py",
+            "chat": "START_CHAT.cmd  OR  chat / brainstorm in panel",
             "configure": "python holon_configure.py gui",
             "help": "python holon_configure.py help",
             "note": "GUI is the normal human path; CLI is for power users and agents.",
@@ -225,34 +252,36 @@ def main(argv=None) -> int:
     }
     handoff["agent_boot"] = boot_meta
 
+    payload = json.dumps(handoff, ensure_ascii=False, indent=2, default=str)
+
     if args.no_banner:
-        print(json.dumps(handoff, ensure_ascii=False, indent=2, default=str))
+        _safe_out(payload)
         return 0
 
-    print("=" * 60)
-    print(" KARMIN_AE BOOT — Agent Edition SE (silnik Holon); nie cudza baza")
-    print(" human UI: START.cmd / python karmin_app.py   |   agent: this boot")
-    print("=" * 60)
-    print(f" root    : {ROOT}")
-    print(f" memory  : {Path(mem_path).resolve()}")
+    _safe_out("=" * 60)
+    _safe_out(" KARMIN_AE BOOT — Agent Edition SE (silnik Holon); nie cudza baza")
+    _safe_out(" human UI: START.cmd / python karmin_app.py   |   agent: this boot")
+    _safe_out("=" * 60)
+    _safe_out(f" root    : {ROOT}")
+    _safe_out(f" memory  : {Path(mem_path).resolve()}")
     proj_label = project or "(all)"
     if project_source:
         proj_label = f"{proj_label} [{project_source}]"
-    print(f" project : {proj_label}")
-    print(f" mode    : {handoff.get('mode')}")
-    print(f" store   : {handoff.get('stats', {})}")
+    _safe_out(f" project : {proj_label}")
+    _safe_out(f" mode    : {handoff.get('mode')}")
+    _safe_out(f" store   : {handoff.get('stats', {})}")
     if handoff.get("recommended_actions"):
-        print(f" next    : {handoff['recommended_actions'][0]}")
-    print("-" * 60)
-    print(" HANDOFF JSON")
-    print("-" * 60)
-    print(json.dumps(handoff, ensure_ascii=False, indent=2, default=str))
-    print("-" * 60)
+        _safe_out(f" next    : {handoff['recommended_actions'][0]}")
+    _safe_out("-" * 60)
+    _safe_out(" HANDOFF JSON")
+    _safe_out("-" * 60)
+    _safe_out(payload)
+    _safe_out("-" * 60)
     if not args.compact and "commands" in boot_meta:
-        print(" DALEJ (kopiuj / odpalaj):")
+        _safe_out(" DALEJ (kopiuj / odpalaj):")
         for k, cmd in boot_meta["commands"].items():
-            print(f"  [{k}] {cmd}")
-    print("=" * 60)
+            _safe_out(f"  [{k}] {cmd}")
+    _safe_out("=" * 60)
     return 0
 
 
