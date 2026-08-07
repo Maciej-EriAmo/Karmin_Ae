@@ -125,9 +125,10 @@ python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 
 - Agent: `Config.agent()` / `Config.from_settings()` — `AgentMemory` / boot  
 - Chat EriAmo: `Config.chat()` — `main.py`  
-- **Konfigurator:** `python holon_configure.py wizard` · `doctor` · `gui`  
-  → `holon_settings.json` (gitignore); docs: [docs/CONFIGURE.md](docs/CONFIGURE.md)  
-- Env: `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_LLM_*`, `HOLON_KARMIN_PATH`
+- **Konfigurator:** `python holon_configure.py help` · `wizard` · `doctor` · `gui`  
+  → `holon_settings.json` (gitignore); język: `--lang en` / `set ui_lang en` / `HOLON_UI_LANG`  
+  docs: [docs/CONFIGURE.md](docs/CONFIGURE.md)  
+- Env: `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_LLM_*`, `HOLON_UI_LANG`, `HOLON_KARMIN_PATH`
 
 ---
 

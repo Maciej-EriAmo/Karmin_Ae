@@ -58,17 +58,22 @@ SAFE_OVERRIDE_KEYS = frozenset(
 )
 
 # Presety produktowe — pozycjonowanie vs „pamięć agenta z chmury”.
+# label/description = PL; label_en/description_en = EN (UI switch).
 PRESETS: Dict[str, Dict[str, Any]] = {
     "se": {
         "label": "SE / Grok (ciągłość)",
+        "label_en": "SE / Grok (continuity)",
         "profile": "agent",
         "description": "Domyślny tor agenta: długa trwałość, hybrid handoff, crystallize.",
+        "description_en": "Default agent path: long durability, hybrid handoff, crystallize.",
         "overrides": {},
     },
     "se-compact": {
         "label": "SE kompakt (mniej tokenów)",
+        "label_en": "SE compact (fewer tokens)",
         "profile": "agent",
         "description": "Węższy handoff — mniej faktów/work w bootstrapie.",
+        "description_en": "Tighter handoff — fewer facts/work in bootstrap.",
         "overrides": {
             "handoff_max_work": 1,
             "handoff_max_facts": 4,
@@ -79,8 +84,10 @@ PRESETS: Dict[str, Dict[str, Any]] = {
     },
     "se-long": {
         "label": "SE long-horizon",
+        "label_en": "SE long-horizon",
         "profile": "agent",
         "description": "Większy store i miększe prune — długie projekty multi-sesja.",
+        "description_en": "Larger store and softer prune — long multi-session projects.",
         "overrides": {
             "hard_prune_store_max": 800,
             "store_decay_hours": 4320.0,
@@ -90,17 +97,61 @@ PRESETS: Dict[str, Dict[str, Any]] = {
     },
     "chat": {
         "label": "Chat EriAmo",
+        "label_en": "Chat EriAmo",
         "profile": "chat",
         "description": "Produkt rozmowy — ciaśniejszy store, krótsze epizody.",
+        "description_en": "Conversation product — tighter store, shorter episodes.",
         "overrides": {},
     },
     "lab-flat": {
         "label": "Lab flat (bez Prism)",
+        "label_en": "Lab flat (no Prism)",
         "profile": "flat",
         "description": "Ablacja Φ/Prism — porównania i testy.",
+        "description_en": "Φ/Prism ablation — comparisons and tests.",
         "overrides": {"use_prism": False},
     },
 }
+
+
+def normalize_lang(raw: Optional[str]) -> str:
+    """Zwraca ``pl`` lub ``en``."""
+    v = (raw or "").strip().lower()
+    if v in ("en", "eng", "english", "us", "gb"):
+        return "en"
+    return "pl"
+
+
+def resolve_ui_lang(
+    cli_lang: Optional[str] = None,
+    settings: Optional[Dict[str, Any]] = None,
+    settings_path: Optional[str | Path] = None,
+) -> str:
+    """Kolejność: CLI → env ``HOLON_UI_LANG`` → settings ``ui_lang`` → pl."""
+    if cli_lang:
+        return normalize_lang(cli_lang)
+    env = (os.environ.get("HOLON_UI_LANG") or os.environ.get("HOLON_LANG") or "").strip()
+    if env:
+        return normalize_lang(env)
+    s = settings if settings is not None else load_settings(settings_path)
+    return normalize_lang(str(s.get("ui_lang") or "pl"))
+
+
+def preset_text(name: str, lang: str = "pl") -> Tuple[str, str]:
+    """(label, description) w wybranym języku."""
+    meta = PRESETS.get(name) or {}
+    en = normalize_lang(lang) == "en"
+    label = str(
+        (meta.get("label_en") if en else meta.get("label"))
+        or meta.get("label")
+        or name
+    )
+    desc = str(
+        (meta.get("description_en") if en else meta.get("description"))
+        or meta.get("description")
+        or ""
+    )
+    return label, desc
 
 
 def default_settings_path(root: Optional[Path] = None) -> Path:
@@ -115,6 +166,7 @@ def default_blank() -> Dict[str, Any]:
         "preset": "se",
         "default_project": "",
         "memory_path": "holon_memory.json",
+        "ui_lang": "pl",
         "overrides": {},
         "updated_at": 0.0,
         "notes": "",
@@ -188,6 +240,7 @@ def normalize_settings(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     base["default_project"] = str(data.get("default_project") or "").strip()
     mp = str(data.get("memory_path") or "holon_memory.json").strip()
     base["memory_path"] = mp or "holon_memory.json"
+    base["ui_lang"] = normalize_lang(str(data.get("ui_lang") or "pl"))
     base["overrides"] = sanitize_overrides(data.get("overrides") or {})
     base["updated_at"] = float(data.get("updated_at") or 0.0)
     base["notes"] = str(data.get("notes") or "")

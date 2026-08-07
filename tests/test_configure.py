@@ -13,10 +13,14 @@ from holon_settings import (
     doctor,
     load_config,
     load_settings,
+    normalize_lang,
     normalize_settings,
+    preset_text,
+    resolve_ui_lang,
     save_settings,
     sanitize_overrides,
 )
+from holon_configure import main as configure_main
 
 
 class TestSettings(unittest.TestCase):
@@ -58,6 +62,21 @@ class TestSettings(unittest.TestCase):
             s = apply_preset(name)
             cfg = load_config(settings=s, apply_env=False)
             self.assertIn(cfg.profile, ("agent", "chat", "flat"))
+
+    def test_ui_lang_normalize(self):
+        self.assertEqual(normalize_lang("EN"), "en")
+        self.assertEqual(normalize_lang("polish"), "pl")
+        s = normalize_settings({"ui_lang": "en", "profile": "agent"})
+        self.assertEqual(s["ui_lang"], "en")
+        self.assertEqual(resolve_ui_lang("en", settings={"ui_lang": "pl"}), "en")
+        pl_label, _ = preset_text("se-compact", "pl")
+        en_label, _ = preset_text("se-compact", "en")
+        self.assertIn("kompakt", pl_label.lower())
+        self.assertIn("compact", en_label.lower())
+
+    def test_help_cli_en(self):
+        code = configure_main(["--lang", "en", "help"])
+        self.assertEqual(code, 0)
 
 
 if __name__ == "__main__":

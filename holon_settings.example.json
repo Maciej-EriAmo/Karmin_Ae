@@ -4,6 +4,7 @@
   "preset": "se",
   "default_project": "Holon",
   "memory_path": "holon_memory.json",
+  "ui_lang": "pl",
   "overrides": {
     "handoff_max_facts": 6,
     "handoff_max_work": 2,
@@ -11,5 +12,5 @@
     "llm_model": "",
     "llm_base_url": ""
   },
-  "notes": "Skopiuj do holon_settings.json lub: python holon_configure.py wizard"
+  "notes": "Copy to holon_settings.json or: python holon_configure.py wizard · lang: set ui_lang en"
 }

@@ -56,9 +56,10 @@ python holon_agent_memory.py eval
 python holon_agent_memory.py ablation                       # B6 flat vs prism
 
 # === KONFIGURATOR (profile / handoff / LLM / doctor) ===
+python holon_configure.py help            # instrukcja w programie
 python holon_configure.py wizard
 python holon_configure.py doctor
-python holon_configure.py gui                               # okienko tkinter
+python holon_configure.py gui             # okienko tkinter
 ```
 
 ```python
@@ -74,7 +75,43 @@ mem.crystallize(project="Holon")          # B9
 mem.save()
 ```
 
-Patrz tez: [AGENTS.md](AGENTS.md) (kontrakt startowy).
+Patrz też: [AGENTS.md](AGENTS.md) (kontrakt startowy).
+
+---
+
+## Konfigurator — krótka instrukcja
+
+Lokalny setup pamięci SE (nie SaaS). Zapisuje **`holon_settings.json`** (gitignore) — to **nie** jest `holon_memory.json` (stan umysłu).
+
+| Krok | Komenda |
+|------|---------|
+| 1. Instrukcja | `python holon_configure.py help` |
+| 2. Wizard | `python holon_configure.py wizard` |
+| 3. Kontrola | `python holon_configure.py doctor` |
+| 4. Boot agenta | `python agent_boot.py` |
+| GUI | `python holon_configure.py gui` |
+
+**Presety:** `se` (ciągłość) · `se-compact` (mniej tokenów) · `se-long` · `chat` · `lab-flat`
+
+```bat
+python holon_configure.py use se-compact
+python holon_configure.py set default_project Karmazyn
+python holon_configure.py set-override handoff_max_facts 4
+```
+
+### Język PL / EN
+
+| Sposób | Przykład |
+|--------|----------|
+| Jednorazowo (CLI) | `python holon_configure.py --lang en help` |
+| Trwale w settings | `python holon_configure.py set ui_lang en` |
+| Skrót | `python holon_configure.py lang en` |
+| Env | `set HOLON_UI_LANG=en` |
+| GUI | przełącznik **Język / Language** |
+
+Kolejność: `--lang` → `HOLON_UI_LANG` → `ui_lang` w pliku → **pl**.
+
+Pełny opis: [docs/CONFIGURE.md](docs/CONFIGURE.md) · w programie: `python holon_configure.py help`.
 
 ---
 

@@ -9,8 +9,16 @@
 |------|------|
 | `holon_settings.json` | lokalne preferencje (**gitignore**; może mieć API key) |
 | `holon_settings.example.json` | szablon w repo |
-| `holon_settings.py` | load/save, presetty, `load_config`, doctor |
-| `holon_configure.py` | CLI + GUI (tkinter) |
+| `holon_settings.py` | load/save, presetty, `load_config`, doctor, `ui_lang` |
+| `holon_configure.py` | CLI + GUI (tkinter) + `help` |
+
+## Instrukcja w programie
+
+```bat
+python holon_configure.py help
+python holon_configure.py --lang en help
+python holon_configure.py          # bez komendy = help
+```
 
 ## CLI
 
@@ -19,12 +27,25 @@ python holon_configure.py show
 python holon_configure.py presets
 python holon_configure.py use se-compact
 python holon_configure.py set default_project Karmazyn
+python holon_configure.py set ui_lang en
+python holon_configure.py lang en
 python holon_configure.py set-override handoff_max_facts 4
 python holon_configure.py wizard
 python holon_configure.py doctor
 python holon_configure.py export-env
 python holon_configure.py gui
 ```
+
+## Język (PL / EN)
+
+| Priorytet | Źródło |
+|-----------|--------|
+| 1 | `--lang pl\|en` |
+| 2 | env `HOLON_UI_LANG` (alias `HOLON_LANG`) |
+| 3 | `ui_lang` w `holon_settings.json` |
+| 4 | domyślnie **pl** |
+
+GUI: combobox **Język / Language** (zapis przy Save).
 
 ## Presety
 
@@ -62,4 +83,4 @@ lokalność · durable fact/work · handoff · hybrid since · crystallize · Mn
 python holon_configure.py gui
 ```
 
-Stdlib **tkinter** — bez dodatkowych pipów. Zapisz / Doctor / podpowiedź boot.
+Stdlib **tkinter** — bez dodatkowych pipów. Zapisz / Doctor / Boot how-to / Help / Language.
