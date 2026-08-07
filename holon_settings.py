@@ -61,23 +61,29 @@ SAFE_OVERRIDE_KEYS = frozenset(
 # label/description = PL; label_en/description_en = EN (UI switch).
 PRESETS: Dict[str, Dict[str, Any]] = {
     "se": {
-        "label": "SE / Grok (ciągłość)",
-        "label_en": "SE / Grok (continuity)",
+        "label": "SE / Grok (ciągłość, kompakt)",
+        "label_en": "SE / Grok (continuity, compact)",
         "profile": "agent",
-        "description": "Domyślny tor agenta: długa trwałość, hybrid handoff, crystallize.",
-        "description_en": "Default agent path: long durability, hybrid handoff, crystallize.",
-        "overrides": {},
-    },
-    "se-compact": {
-        "label": "SE kompakt (mniej tokenów)",
-        "label_en": "SE compact (fewer tokens)",
-        "profile": "agent",
-        "description": "Węższy handoff — mniej faktów/work w bootstrapie.",
-        "description_en": "Tighter handoff — fewer facts/work in bootstrap.",
+        "description": "Domyślny tor: 1 work, krótki handoff, hybrid since, crystallize.",
+        "description_en": "Default path: 1 work, short handoff, hybrid since, crystallize.",
         "overrides": {
             "handoff_max_work": 1,
             "handoff_max_facts": 4,
             "handoff_max_chronicle": 2,
+            "set_work_max_active": 1,
+        },
+    },
+    "se-compact": {
+        "label": "SE ultra-kompakt",
+        "label_en": "SE ultra-compact",
+        "profile": "agent",
+        "description": "Minimalny bootstrap — 3 facts, 1 work, bez chronicle w compact boot.",
+        "description_en": "Minimal bootstrap — 3 facts, 1 work, no chronicle on compact boot.",
+        "overrides": {
+            "handoff_max_work": 1,
+            "handoff_max_facts": 3,
+            "handoff_max_chronicle": 1,
+            "set_work_max_active": 1,
             "top_n_recall": 6,
             "digest_timeline_items": 4,
         },

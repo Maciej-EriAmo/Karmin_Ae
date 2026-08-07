@@ -1,4 +1,4 @@
-# B10 — Handoff projection (v5.13)
+# B10 — Handoff projection (v5.13+)
 
 **Cel:** ostrzejsza **projekcja** tego, co już jest w `holon_memory.json` — mniej szumu w bootcie, bez nowej bazy i bez zmyślania treści.
 
@@ -16,34 +16,38 @@
 |---------|------------|
 | **Hybrid `--since`** | Facts nadal tylko w oknie. `active_work` dopełnia last work **spoza** okna (`outside_window: true`). `mode=hybrid` gdy dopełniono. |
 | **`--strict-delta`** | Wyłącza hybrid (czyste B1). |
-| **`anchors` / `chronicle`** | Kotwice (relevance×cluster×długość, dedupe) vs świeższy log. |
+| **`anchors` / `chronicle`** | Kotwice vs świeższy log; w **compact** chronicle=0, anchors nie dublują key_facts. |
 | **`key_facts`** | full → anchors; delta/hybrid → tylko nowe w oknie (kompat B1). |
-| **`recent_done`** | Inne aktywne work poza top projection (max 2). |
-| **`recommended_actions`** | np. crystallize gdy work>1, close na koniec, full boot po Δ≥48h. |
-| **`suggested_mneme`** | `RECALL` / `NEAR` / `FOCUS` z active work. |
-| **`set-work` max_active=1** | Domyślnie jeden wątek na projekt (Config). |
+| **`recent_done`** | Tylko `--rich`; w compact puste. |
+| **`recommended_actions`** | Max 3, ASCII, priorytet: 1 work → crystallize → close. |
+| **`suggested_mneme`** | RECALL/NEAR/FOCUS (compact: max 2). |
+| **`set-work` max_active=1** | Jeden wątek; boot woła `enforce_max_work`. |
 | **`close`** | Atomowo work + fact + save + `last_project`. |
-| **last project** | `holon_memory.meta.json` + env `HOLON_DEFAULT_PROJECT`; boot bez `--project` podstawia last. |
-| **`--compact`** | Mniej tokenów: krótkie limity, krótki protocol, bez listy commands w bannerze. |
-| **remember merge** | Próg z `Config.remember_merge_sim` (agent 0.88); exact/prefix bez zmian. |
+| **last project** | `holon_memory.meta.json` + env; boot bez `--project` → last. |
+| **compact (domyślnie ON)** | 1 work, ≤3 facts, 0 chronicle, content≤280, krótki protocol. |
+| **`--rich`** | Pełniejszy handoff (wyłącza compact). |
+| **remember merge** | `Config.remember_merge_sim` (agent 0.88). |
 
 ## CLI
 
 ```bash
-# hybrid re-boot (domyślnie)
+# hybrid re-boot (compact ON domyslnie)
 python agent_boot.py --since 24h --project Holon
 
 # czysta delta B1
 python agent_boot.py --since 24h --strict-delta --project Holon
 
-# mało tokenów
-python agent_boot.py --compact --no-banner
+# pipe JSON
+python agent_boot.py --no-banner
+
+# pelniejszy handoff
+python agent_boot.py --rich --project Holon
 
 # last project (po set-work/close)
 python agent_boot.py
-python agent_boot.py --all-projects   # wymuś brak filtra
+python agent_boot.py --all-projects
 
-# domknięcie sesji
+# domkniecie sesji
 python holon_agent_memory.py close \
   --work-text "next: type-unify" \
   --fact-text "kcc 0.3 TB.2e saved; gate verify_kcc OK" \
@@ -56,12 +60,15 @@ python holon_agent_memory.py close \
 {
   "protocol": "holon-agent-handoff-v1",
   "mode": "full | delta | hybrid",
-  "active_work": [{"content": "…", "outside_window": true}],
+  "compact": true,
+  "active_work": [{"content": "...", "outside_window": true}],
   "recent_done": [],
   "key_facts": [],
   "anchors": [],
   "chronicle": [],
-  "recommended_actions": ["crystallize --project Holon  # work=3>1"],
+  "recommended_actions": [
+    "python holon_agent_memory.py set-work \"...\" --max-active 1 --project Holon"
+  ],
   "suggested_mneme": ["RECALL \"kcc 0.3\" TOP 5"],
   "since": {
     "hours": 24.0,
@@ -79,11 +86,13 @@ python holon_agent_memory.py close \
 |------|-----------|
 | `set_work_max_active` | 1 |
 | `crystallize_max_active_work` | 1 |
-| `handoff_max_work` | 2 |
-| `handoff_max_facts` | 6 |
-| `handoff_max_chronicle` | 4 |
+| `handoff_max_work` | **1** |
+| `handoff_max_facts` | **4** |
+| `handoff_max_chronicle` | **2** |
 | `handoff_hybrid_since` | True |
 | `remember_merge_sim` | 0.88 |
+
+Preset `se` = te limity; `se-compact` = facts 3 (jeszcze ciaśniej); `--rich` w boot = pełniejsza projekcja.
 
 ## Testy
 

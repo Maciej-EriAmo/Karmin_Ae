@@ -142,9 +142,10 @@ class Config:
             crystallize_reinforce_top=32,
             crystallize_max_active_work=1,
             set_work_max_active=1,
-            handoff_max_work=2,
-            handoff_max_facts=6,
-            handoff_max_chronicle=4,
+            # SE default = se-compact: krótki handoff (agent prosi o mało tokenów)
+            handoff_max_work=1,
+            handoff_max_facts=4,
+            handoff_max_chronicle=2,
             handoff_hybrid_since=True,
             remember_merge_sim=0.88,
         )

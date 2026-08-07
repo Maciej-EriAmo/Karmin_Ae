@@ -226,21 +226,31 @@ def run_golden_eval() -> Dict[str, Any]:
         # B10: hybrid since — stary work spoza okna w active_work
         tok_old_w = f"OLDWORK_{uuid.uuid4().hex[:6]}"
         tok_new_w = f"NEWWORK_{uuid.uuid4().hex[:6]}"
-        mem.set_work(f"[Holon] stary work {tok_old_w}", project="Holon", max_active=5)
+        # izolacja: jeden work na projekt (handoff_max_work=1) — zdemotuj reszte Holon
+        for it in mem.hm.store:
+            if it.is_work and "[Holon]" in (it.content or ""):
+                it.is_work = False
+                it.is_fact = True
+        mem.set_work(f"[Holon] stary work {tok_old_w}", project="Holon", max_active=1)
         for it in mem.hm.store:
             if tok_old_w in (it.content or "") and it.is_work:
                 it.created_at = time.time() - 72 * 3600
-        mem.set_work(f"[Holon] nowy work {tok_new_w}", project="Holon", max_active=5)
+        mem.set_work(f"[Holon] nowy work {tok_new_w}", project="Holon", max_active=2)
         for it in mem.hm.store:
             if tok_new_w in (it.content or "") and it.is_work:
                 it.created_at = time.time() - 0.2 * 3600
-        # tylko stary work w oknie pustym: przenieś nowy poza / usuń z okna
-        # scenariusz: brak work w 24h, jest stary → hybrid
+        # scenariusz hybrid: brak work w 24h, zostaje stary spoza okna
         for it in mem.hm.store:
             if tok_new_w in (it.content or "") and it.is_work:
                 it.created_at = time.time() - 80 * 3600
                 it.is_work = False
                 it.is_fact = True
+        # upewnij sie ze stary nadal jest work
+        for it in mem.hm.store:
+            if tok_old_w in (it.content or ""):
+                it.is_work = True
+                it.is_fact = False
+                it.created_at = time.time() - 72 * 3600
         hh = mem.handoff(
             project="Holon", include_digest=False, since="24h", hybrid_since=True
         )

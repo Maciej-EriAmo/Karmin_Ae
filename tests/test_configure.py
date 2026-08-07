@@ -33,10 +33,16 @@ class TestSettings(unittest.TestCase):
     def test_preset_se_compact(self):
         s = apply_preset("se-compact")
         self.assertEqual(s["profile"], "agent")
-        self.assertEqual(s["overrides"].get("handoff_max_facts"), 4)
+        self.assertEqual(s["overrides"].get("handoff_max_facts"), 3)
         cfg = load_config(settings=s, apply_env=False)
-        self.assertEqual(cfg.handoff_max_facts, 4)
+        self.assertEqual(cfg.handoff_max_facts, 3)
+        self.assertEqual(cfg.handoff_max_work, 1)
         self.assertEqual(cfg.profile, "agent")
+        # se default also compact handoff
+        se = apply_preset("se")
+        se_cfg = load_config(settings=se, apply_env=False)
+        self.assertEqual(se_cfg.handoff_max_work, 1)
+        self.assertLessEqual(se_cfg.handoff_max_facts, 4)
 
     def test_save_load_roundtrip(self):
         with tempfile.TemporaryDirectory() as td:

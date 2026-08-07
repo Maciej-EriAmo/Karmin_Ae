@@ -27,6 +27,10 @@ cd /d C:\Users\drwis\Karmin_Ae
 python agent_boot.py
 ```
 
+**Domyślnie compact** (1 work, ≤3 facts, silne `recommended_actions`, bez chronicle).  
+Pełniejszy handoff: `python agent_boot.py --rich`.  
+Boot **egzekwuje max 1 work** na projekt (nadmiar → fact).
+
 Z filtrem projektu:
 
 ```bat
@@ -34,18 +38,13 @@ python agent_boot.py --project Karmazyn
 python agent_boot.py --project Holon
 ```
 
-Re-boot / mniej tokenów (**B1+B10** — delty facts + hybrid work spoza okna):
+Re-boot / delty (**B1+B10** hybrid work spoza okna):
 
 ```bat
 python agent_boot.py --since 24h
 python agent_boot.py --since 24h --project Holon
-python agent_boot.py --compact --no-banner
-```
-
-Tylko JSON (pipe):
-
-```bat
 python agent_boot.py --no-banner
+python agent_boot.py --rich --project Holon
 ```
 
 Alias Windows: `agent_boot.cmd` · PowerShell: `.\agent_boot.ps1`

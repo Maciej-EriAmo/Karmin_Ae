@@ -88,7 +88,13 @@ def main(argv=None) -> int:
     p.add_argument(
         "--compact",
         action="store_true",
-        help="B10: mniej tokenów (krótki protocol, ciaśniejsze limity, bez commands)",
+        default=True,
+        help="B10: krotki handoff (domyslnie ON: 1 work, 3 facts, bez chronicle)",
+    )
+    p.add_argument(
+        "--rich",
+        action="store_true",
+        help="pelnieszy handoff (wylacza compact; wiecej factow/chronicle/commands)",
     )
     p.add_argument(
         "--all-projects",
@@ -149,8 +155,18 @@ def main(argv=None) -> int:
         if project:
             project_source = "last_or_env"
 
+    # 1 aktywny work na projekt (tarcia: work-spam)
+    try:
+        dem = am.enforce_max_work(project=project or "", max_active=1, save=True)
+        if dem.get("demoted"):
+            pass  # cicho; stats w handoff pokaza work po demote
+    except Exception:
+        dem = {"demoted": 0}
+
     want_md = bool(args.md or args.out)
     hybrid = False if args.strict_delta else None
+    # domyslnie compact; --rich = pelny; --full = digest (osobno)
+    use_compact = False if args.rich else True
     try:
         if want_md:
             md = am.handoff_md(
@@ -158,7 +174,7 @@ def main(argv=None) -> int:
                 include_digest=bool(args.full),
                 since=args.since or None,
                 out_path=args.out or None,
-                compact=bool(args.compact),
+                compact=use_compact,
                 hybrid_since=hybrid,
             )
             if args.out and not args.no_banner:
@@ -172,7 +188,7 @@ def main(argv=None) -> int:
             project=project,
             include_digest=bool(args.full),
             since=args.since or None,
-            compact=bool(args.compact),
+            compact=use_compact,
             hybrid_since=hybrid,
         )
     except ValueError as e:
@@ -195,7 +211,7 @@ def main(argv=None) -> int:
             "b10": str(ROOT / "docs" / "B10_HANDOFF.md"),
         },
     }
-    if not args.compact:
+    if not use_compact:
         boot_meta["commands"] = {
             "boot": f'python "{ROOT / "agent_boot.py"}"'
             + (f" --project {project}" if project else ""),
@@ -221,16 +237,16 @@ def main(argv=None) -> int:
             "configure": f'python "{ROOT / "holon_configure.py"}" gui',
         }
         boot_meta["protocol_short"] = [
-            "1. Start: python agent_boot.py [--project X] [--since 24h] [--compact]",
-            "2. Hybrid --since dopełnia work spoza okna (wyłącz: --strict-delta)",
-            "3. Eksploracja: suggested_mneme w handoff lub python -m holon_mneme",
-            "4. Trwałe: remember --fact / close --fact-text",
-            "5. Wątek: set-work (domyślnie 1 aktywny) / close --work-text",
-            "6. Store szumi: crystallize [--project X]",
-            "7. Nie resetuj holon_memory.json; Holon ≠ KarmazynOs kod",
-            "8. KarmazynOs: C:\\Users\\drwis\\KarmazynOs",
-            "9. Człowiek (nie agent): START.cmd / python karmin_app.py",
+            "1. Start: python agent_boot.py [--project X] [--since 24h] (compact ON)",
+            "2. Pelnieszy handoff: --rich",
+            "3. 1 work: set-work --max-active 1 / close",
+            "4. Fact: remember --fact \"[Projekt] ...\"",
+            "5. Store szumi: crystallize [--project X]",
+            "6. Human: START.cmd | Chat: START_CHAT.cmd",
         ]
+    boot_meta["handoff_compact"] = use_compact
+    if dem.get("demoted"):
+        boot_meta["work_demoted"] = dem
     # Dwa tory: agent=CLI, człowiek=GUI (norma UX poza power-userami)
     handoff["surfaces"] = {
         "agent": {

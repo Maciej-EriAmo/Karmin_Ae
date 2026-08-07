@@ -75,6 +75,43 @@ class TestConfigProfiles(unittest.TestCase):
         self.assertEqual(c.profile, "chat")
         self.assertGreater(a.store_decay_hours, c.store_decay_hours)
         self.assertFalse(Config.flat().use_prism)
+        # SE default = krotki handoff, 1 work
+        self.assertEqual(a.handoff_max_work, 1)
+        self.assertLessEqual(a.handoff_max_facts, 4)
+        self.assertEqual(a.set_work_max_active, 1)
+
+
+class TestHandoffCompact(unittest.TestCase):
+    def test_compact_one_work_and_short_lists(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            am = AgentMemory.open(memory_path=path, profile="agent", use_settings=False)
+            # set_work juz demotuje — dwa work: zostaje 1
+            am.set_work("first thread", project="T")
+            am.set_work("second thread wins", project="T")
+            am.remember("[T] fact alpha durable", kind="fact")
+            am.remember("[T] fact beta durable", kind="fact")
+            am.remember("[T] fact gamma durable", kind="fact")
+            am.remember("[T] fact delta durable", kind="fact")
+            am.save()
+            works = [i for i in am.hm.store if i.is_work]
+            self.assertEqual(len(works), 1)
+            # recznie dorzuc drugi work (omijajac set_work) i enforce
+            am.remember("[T] stale work item", kind="work")
+            rep = am.enforce_max_work(project="T", max_active=1)
+            self.assertEqual(rep["kept"], 1)
+            self.assertGreaterEqual(rep["demoted"], 1)
+            h = am.handoff(project="T", compact=True, include_digest=False)
+            self.assertTrue(h.get("compact"))
+            self.assertLessEqual(len(h.get("active_work") or []), 1)
+            self.assertLessEqual(len(h.get("key_facts") or []), 3)
+            self.assertEqual(h.get("chronicle") or [], [])
+            self.assertEqual(h.get("recent_done") or [], [])
+            acts = h.get("recommended_actions") or []
+            self.assertGreaterEqual(len(acts), 1)
+            self.assertLessEqual(len(acts), 3)
+            for w in h.get("active_work") or []:
+                self.assertLessEqual(len(w.get("content") or ""), 280)
 
 
 class TestDurableLoad(unittest.TestCase):

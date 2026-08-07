@@ -913,11 +913,17 @@ class AgentMemory:
             float(item.created_at or 0),
         )
 
-    def _pack_item(self, i: Item, *, outside_window: Optional[bool] = None) -> dict:
+    def _pack_item(
+        self,
+        i: Item,
+        *,
+        outside_window: Optional[bool] = None,
+        content_max: int = 500,
+    ) -> dict:
         d = {
             "when": self._past_label(i.created_at),
             "created_at": i.created_at,
-            "content": (i.content or "")[:500],
+            "content": (i.content or "")[: max(80, int(content_max))],
             "flags": {
                 "fact": bool(i.is_fact),
                 "work": bool(i.is_work),
@@ -927,6 +933,38 @@ class AgentMemory:
         if outside_window is not None:
             d["outside_window"] = bool(outside_window)
         return d
+
+    def enforce_max_work(
+        self,
+        project: str = "",
+        max_active: Optional[int] = None,
+        *,
+        save: bool = False,
+    ) -> dict:
+        """Zostaw co najwyżej N aktywnych work (reszta → fact). Domyślnie 1."""
+        if max_active is None:
+            max_active = int(getattr(self.hm.cfg, "set_work_max_active", 1))
+        max_active = max(1, int(max_active))
+        proj = (project or "").strip()
+        works = [i for i in self.hm.store if i.is_work]
+        if proj:
+            works = [w for w in works if self._match_project(w.content, proj)]
+        works.sort(key=lambda x: -(x.created_at or 0))
+        demoted = []
+        for w in works[max_active:]:
+            w.is_work = False
+            w.is_fact = True
+            demoted.append((w.content or "")[:120])
+        if save and demoted:
+            self.save()
+        return {
+            "ok": True,
+            "max_active": max_active,
+            "project": proj or None,
+            "kept": len(works[:max_active]),
+            "demoted": len(demoted),
+            "demoted_samples": demoted[:5],
+        }
 
     def _suggested_mneme(
         self, work_items: List[Item], project: str = ""
@@ -981,8 +1019,9 @@ class AgentMemory:
         hybrid_filled: bool,
         work_in_window: int,
         facts_in_window: int,
+        has_active_work: bool = False,
     ) -> List[str]:
-        """Sygnały operacyjne z store (nie zmyślanie treści)."""
+        """Sygnały operacyjne — krótka lista (max 3), ASCII, priorytet."""
         acts: List[str] = []
         cfg = self.hm.cfg
         max_w = int(getattr(cfg, "set_work_max_active", 1))
@@ -992,37 +1031,62 @@ class AgentMemory:
             dh = float(delta_hours) if delta_hours is not None else 0.0
         except (TypeError, ValueError):
             dh = 0.0
+        # 1) higiena work (najwyższy priorytet)
         if n_work > max_w:
             acts.append(
-                f"crystallize{pflag}  # work={n_work}>{max_w}; demote nadmiar"
+                f"python holon_agent_memory.py set-work \"...\" --max-active 1{pflag}  "
+                f"# work={n_work}>{max_w}: zostaw 1 aktywny"
             )
-        if n_work > 1:
-            acts.append(
-                f'set-work "…" --max-active 1{pflag}  # jeden aktywny wątek'
-            )
+        # 2) store szumi
         if n_facts >= 40 and proj:
-            acts.append(f"crystallize{pflag}  # store szumi (facts≥40 w projekcie)")
+            acts.append(
+                f"python holon_agent_memory.py crystallize{pflag}  "
+                f"# facts={n_facts} w projekcie — sciezki/merge"
+            )
+        # 3) długa przerwa
         if dh >= 48 and since_h is not None:
             acts.append(
-                "agent_boot bez --since  # długa przerwa — pełne anchors"
+                "python agent_boot.py  # bez --since: pelne anchors po dlugiej przerwie"
             )
+        # 4) pusta delta
         if since_h is not None and work_in_window == 0 and facts_in_window == 0:
             if hybrid_filled:
                 acts.append(
-                    "brak delty w oknie; active_work z poza okna (hybrid) — "
-                    "zapisz close/set-work gdy ruszysz wątek"
+                    "kontynuuj active_work (hybrid spoza okna); "
+                    f"potem close --work-text \"...\" --fact-text \"...\"{pflag}"
                 )
             else:
                 acts.append(
-                    "brak delty w oknie; handoff pełny lub --since większe okno"
+                    "brak delty w oknie — agent_boot bez --since lub wieksze --since"
                 )
+        # 5) domkniecie / zapis (gdy jest work i brak innych alertow)
+        if has_active_work and len(acts) < 2:
+            acts.append(
+                f'python holon_agent_memory.py close --work-text "..." '
+                f'--fact-text "..."{pflag}  # domknij sesje (B10)'
+                if proj
+                else (
+                    'python holon_agent_memory.py close --work-text "..." '
+                    '--fact-text "..." --project P  # domknij sesje (B10)'
+                )
+            )
         if not acts:
             acts.append(
-                f'close --work "…" --fact "…" {pflag.strip()}  # domknięcie sesji B10'
+                f'python holon_agent_memory.py set-work "..."{pflag}  # ustaw 1 work'
                 if proj
-                else 'close --work "…" --fact "…" --project P  # domknięcie sesji B10'
+                else 'python holon_agent_memory.py set-work "..." --project P'
             )
-        return acts[:5]
+        # unikalne, max 3
+        seen = set()
+        out: List[str] = []
+        for a in acts:
+            if a in seen:
+                continue
+            seen.add(a)
+            out.append(a)
+            if len(out) >= 3:
+                break
+        return out
 
     def handoff(
         self,
@@ -1054,15 +1118,16 @@ class AgentMemory:
         st = self.stats()
         cfg = self.hm.cfg
         if max_work is None:
-            max_work = int(getattr(cfg, "handoff_max_work", 2))
+            max_work = int(getattr(cfg, "handoff_max_work", 1))
         if max_facts is None:
-            max_facts = int(getattr(cfg, "handoff_max_facts", 6))
+            max_facts = int(getattr(cfg, "handoff_max_facts", 4))
         if max_chronicle is None:
-            max_chronicle = int(getattr(cfg, "handoff_max_chronicle", 4))
+            max_chronicle = int(getattr(cfg, "handoff_max_chronicle", 2))
+        cmax = 280 if compact else 500
         if compact:
-            max_work = min(max_work, 2)
-            max_facts = min(max_facts, 5)
-            max_chronicle = min(max_chronicle, 2)
+            max_work = min(max_work, 1)
+            max_facts = min(max_facts, 3)
+            max_chronicle = 0  # compact: zero chronicle — mniej szumu
         max_work = max(1, int(max_work))
         max_facts = max(1, int(max_facts))
         max_chronicle = max(0, int(max_chronicle))
@@ -1119,24 +1184,34 @@ class AgentMemory:
             mode = "full"
 
         active_packed = [
-            self._pack_item(i, outside_window=ow if since_h is not None else None)
+            self._pack_item(
+                i,
+                outside_window=ow if since_h is not None else None,
+                content_max=cmax,
+            )
             for i, ow in selected_work
         ]
-        # recent_done: zdemotowane work→fact nie ma flagi work; pokazujemy starsze work
-        # poza active (jeśli zostało) jako historię wątku
+        # recent_done: tylko non-compact (szum w short handoff)
         selected_ids = {id(i) for i, _ in selected_work}
-        recent_done = [
-            self._pack_item(i)
-            for i in work_all
-            if id(i) not in selected_ids
-        ][:2]
+        if compact:
+            recent_done = []
+        else:
+            recent_done = [
+                self._pack_item(i, content_max=cmax)
+                for i in work_all
+                if id(i) not in selected_ids
+            ][:1]
 
         # ── fact projection: anchors + chronicle ─────────────────────────
         anchors_src = sorted(facts_all, key=self._fact_anchor_score, reverse=True)
         anchors = self._handoff_dedupe(anchors_src, max_facts)
         anchor_ids = {id(x) for x in anchors}
         chronicle_src = [i for i in facts_all if id(i) not in anchor_ids]
-        chronicle = self._handoff_dedupe(chronicle_src, max_chronicle)
+        chronicle = (
+            self._handoff_dedupe(chronicle_src, max_chronicle)
+            if max_chronicle > 0
+            else []
+        )
 
         if since_h is not None:
             # key_facts = delty w oknie (kompat B1); nie mieszaj starych do key_facts
@@ -1148,8 +1223,10 @@ class AgentMemory:
         if since_h is not None and not work_in and not facts_in and hybrid_filled:
             wake = (
                 (wake + " " if wake else "")
-                + "[B10 hybrid: brak delty w oknie — active_work spoza --since.]"
+                + "[B10 hybrid: brak delty w oknie - active_work spoza --since.]"
             ).strip()
+        if compact and wake:
+            wake = (wake[:240] + "...") if len(wake) > 240 else wake
 
         work_items_for_mneme = [i for i, _ in selected_work]
         out = {
@@ -1157,20 +1234,28 @@ class AgentMemory:
             "profile": st.get("profile"),
             "project_filter": project or None,
             "mode": mode,
+            "compact": bool(compact),
             "stats": {
                 "turns": st.get("turns"),
                 "store": st.get("store"),
                 "delta_hours": st.get("delta_hours"),
                 "facts": st.get("facts"),
                 "work": st.get("work"),
+                "work_project": len(work_all),
                 "episodic": st.get("episodic"),
             },
             "wake": wake,
             "active_work": active_packed,
             "recent_done": recent_done,
-            "key_facts": [self._pack_item(i) for i in key_facts_items],
-            "anchors": [self._pack_item(i) for i in anchors],
-            "chronicle": [self._pack_item(i) for i in chronicle],
+            "key_facts": [
+                self._pack_item(i, content_max=cmax) for i in key_facts_items
+            ],
+            "anchors": [
+                self._pack_item(i, content_max=cmax) for i in anchors
+            ],
+            "chronicle": [
+                self._pack_item(i, content_max=cmax) for i in chronicle
+            ],
             "recommended_actions": self._recommended_actions(
                 project=project or "",
                 n_work=len(work_all),
@@ -1180,19 +1265,18 @@ class AgentMemory:
                 hybrid_filled=hybrid_filled,
                 work_in_window=len(work_in),
                 facts_in_window=len(facts_in),
+                has_active_work=bool(active_packed),
             ),
             "suggested_mneme": self._suggested_mneme(
                 work_items_for_mneme, project=project or ""
             ),
             "agent_protocol": [
-                "1. Na start sesji: handoff / agent_boot.py; re-boot: --since 24h (B1+B10 hybrid).",
-                "2. Po decyzji trwałej: remember --fact \"...\" (prefiks [Projekt]).",
-                "3. Aktywny wątek: set-work (domyślnie 1) / close na koniec sesji.",
-                "4. Po sesji / gdy store szumi: crystallize [--project P] — B9 ścieżki.",
-                "5. Nie kasuj/resetuj holon_memory.json bez prośby użytkownika.",
-                "6. Kod Holon ≠ KarmazynOs — Holon=pamięć; runtime w KarmazynOs.",
-                "7. Ewal: python holon_agent_memory.py eval",
-                "8. Docs: AGENTS.md, docs/AGENT_WORKFLOW.md, docs/MEMORY_API.md",
+                "1. Start: agent_boot.py; re-boot: --since 24h (hybrid).",
+                "2. Trwale: remember --fact \"[Projekt] ...\".",
+                "3. Watek: set-work (max 1) / close na koniec.",
+                "4. Store szumi: crystallize [--project P].",
+                "5. Nie resetuj holon_memory.json bez prosby.",
+                "6. Holon=pamiec; runtime=KarmazynOs.",
             ],
             "paths": {
                 "memory": self.memory_path,
@@ -1202,13 +1286,18 @@ class AgentMemory:
             },
         }
         if compact:
-            # mniej tokenów: protokół skrócony; chronicle tylko gdy full
+            # mniej tokenow: krotki protocol; bez dublowania anchors=key_facts
             out["agent_protocol"] = [
-                "boot → work/fact → close; crystallize gdy szumi; nie resetuj store.",
+                "boot -> 1 work + fact -> close; crystallize gdy szumi; nie resetuj store.",
             ]
-            if since_h is not None:
-                out["chronicle"] = []
-                out["anchors"] = out["anchors"][:3]
+            out["chronicle"] = []
+            # full compact: anchors juz = key_facts — nie dubluj
+            if since_h is None:
+                out["anchors"] = []
+            else:
+                out["anchors"] = out["anchors"][:2]
+            # mneme max 2
+            out["suggested_mneme"] = (out.get("suggested_mneme") or [])[:2]
 
         if since_h is not None:
             out["since"] = {
