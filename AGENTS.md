@@ -7,6 +7,16 @@
 > Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.  
 > **Karmin_Ae ≠ Karmin_DB** (skarbiec).
 
+### Dwa tory (nie myl)
+
+| Kto | Start | Nie rób |
+|-----|--------|---------|
+| **Ty (agent)** | `python agent_boot.py` | Nie otwieraj GUI zamiast boot |
+| **Człowiek** | `START.cmd` / `python karmin_app.py` | Nie musi znać CLI |
+
+Handoff JSON zawiera pole **`surfaces`**: `agent` vs `human`.  
+Szybki stan: `python karmin_app.py --status` albo `python holon_agent_memory.py status`.
+
 ---
 
 ## 0. OBOWIĄZKOWY START SESJI (jedna komenda)
@@ -49,6 +59,8 @@ Nie zmyślaj „stanu projektu” z powietrza.
 
 | Narzędzie | Po co | Komenda |
 |-----------|--------|---------|
+| **karmin_app** | panel człowieka (GUI) | `START.cmd` / `python karmin_app.py` · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
+| **status** | stan JSON (agent+human) | `python karmin_app.py --status` |
 | **agent_boot** | bootstrap JSON | `python agent_boot.py` |
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
 | **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |

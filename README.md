@@ -6,7 +6,7 @@
 **Trwała, lokalna pamięć SE dla agenta (Grok/CLI) i sesji czatu EriAmo.**  
 **Widzialna marka:** **Karmin_Ae** — *Agent Edition* (nie mylić z **Karmin_DB** / skarbcem).  
 **Silnik w kodzie:** Holon (`holon_*.py`) — nazwy plików bez wymuszonego rename.  
-**Wersja:** **v5.13.0** — Plan B + B10 handoff projection (hybrid since · close · anchors).
+**Wersja:** **v5.13+** — Plan B + B10 handoff · B11 configure · **B12 Control Center** (GUI dla człowieka).
 
 > Dawniej workspace/repo: *holonOs* (kolizja nazwy zewnętrznej).  
 > Katalog i repo: **Karmin_Ae**. Pliki `holon_*` mogą zostać.
@@ -32,34 +32,52 @@ Szczegóły: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Agent: **[AGENT
 
 ---
 
-## Quick start (pamięć SE)
+## Dwa tory (celowo)
 
-```bash
+| Kto | Norma | Start |
+|-----|--------|--------|
+| **Człowiek** | GUI (nie CLI) | **`START.cmd`** albo `python karmin_app.py` |
+| **Agent SE (Grok)** | CLI / JSON | **`python agent_boot.py`** · [AGENTS.md](AGENTS.md) |
+| **Power-user** | CLI jak lubisz | `holon_configure`, `holon_agent_memory`, Mneme |
+
+CLI nie znika — jest dla Ciebie i dla agenta. **Dla typowego użytkownika norma to panel**, nie terminal.
+
+---
+
+## Quick start
+
+### 1) Człowiek (Control Center)
+
+```bat
 cd C:\Users\drwis\Karmin_Ae
 pip install -r requirements.txt
+START.cmd
+```
 
-# === START DLA AGENTA (jedna komenda) ===
+Panel: **Start** (stan, doctor) · **Sesja SE** (handoff jak agent) · **Pamięć** (fact/work/close) · **Ustawienia** · **Pomoc**.  
+Instrukcja krok po kroku: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
+
+### 2) Agent SE (jedna komenda)
+
+```bat
 python agent_boot.py
-# python agent_boot.py --project Karmazyn
-# python agent_boot.py --no-banner
+python agent_boot.py --project Karmazyn
+python agent_boot.py --since 24h --compact --no-banner
+python karmin_app.py --status
+```
 
-python holon_agent_memory.py seed          # raz / odswiezenie kotwic
-python -m holon_mneme --repl               # meta-jezyk + graf
+### 3) Power-user CLI
+
+```bat
+python holon_agent_memory.py seed
+python -m holon_mneme --repl
 python holon_agent_memory.py remember --fact "[Holon] ..."
 python holon_agent_memory.py set-work "..." --project Karmazyn
 python holon_agent_memory.py close --work-text "..." --fact-text "..." --project Karmazyn
-python holon_agent_memory.py crystallize --project Holon   # B9 sciezki
-python agent_boot.py --since 24h                             # B1+B10 hybrid
-python agent_boot.py --compact --no-banner
-python agent_boot.py --md --out handoff.md                   # B7 markdown
+python holon_agent_memory.py crystallize --project Holon
 python holon_agent_memory.py eval
-python holon_agent_memory.py ablation                       # B6 flat vs prism
-
-# === KONFIGURATOR (profile / handoff / LLM / doctor) ===
-python holon_configure.py help            # instrukcja w programie
-python holon_configure.py wizard
-python holon_configure.py doctor
-python holon_configure.py gui             # okienko tkinter
+python holon_configure.py help
+python holon_configure.py gui
 ```
 
 ```python
@@ -79,17 +97,17 @@ Patrz też: [AGENTS.md](AGENTS.md) (kontrakt startowy).
 
 ---
 
-## Konfigurator — krótka instrukcja
+## Konfigurator i panel — krótka instrukcja
 
-Lokalny setup pamięci SE (nie SaaS). Zapisuje **`holon_settings.json`** (gitignore) — to **nie** jest `holon_memory.json` (stan umysłu).
+Lokalny setup pamięci SE (nie SaaS). **`holon_settings.json`** = preferencje (gitignore); **`holon_memory.json`** = stan umysłu.
 
-| Krok | Komenda |
-|------|---------|
-| 1. Instrukcja | `python holon_configure.py help` |
-| 2. Wizard | `python holon_configure.py wizard` |
-| 3. Kontrola | `python holon_configure.py doctor` |
-| 4. Boot agenta | `python agent_boot.py` |
-| GUI | `python holon_configure.py gui` |
+| Krok | Człowiek (GUI) | CLI |
+|------|----------------|-----|
+| 1. Start | **`START.cmd`** | `python karmin_app.py` |
+| 2. Setup | zakładka Ustawienia | `python holon_configure.py wizard` |
+| 3. Doctor | przycisk Doctor | `python holon_configure.py doctor` |
+| 4. Agent | (nie musi) | `python agent_boot.py` |
+| Help | zakładka Pomoc | `python holon_configure.py help` |
 
 **Presety:** `se` (ciągłość) · `se-compact` (mniej tokenów) · `se-long` · `chat` · `lab-flat`
 
@@ -111,7 +129,7 @@ python holon_configure.py set-override handoff_max_facts 4
 
 Kolejność: `--lang` → `HOLON_UI_LANG` → `ui_lang` w pliku → **pl**.
 
-Pełny opis: [docs/CONFIGURE.md](docs/CONFIGURE.md) · w programie: `python holon_configure.py help`.
+Pełny opis: [docs/CONFIGURE.md](docs/CONFIGURE.md) · instrukcja człowieka: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · w programie: `python holon_configure.py help`.
 
 ---
 
@@ -119,17 +137,18 @@ Pełny opis: [docs/CONFIGURE.md](docs/CONFIGURE.md) · w programie: `python holo
 
 | Doc | Opis |
 |------|------|
-| [docs/README.md](docs/README.md) | Indeks |
-| [AGENTS.md](AGENTS.md) | Kontrakt startowy agenta |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | **Instrukcja obsługi (człowiek / GUI)** |
+| [docs/CONFIGURE.md](docs/CONFIGURE.md) | Control Center + konfigurator + język PL/EN |
+| [docs/README.md](docs/README.md) | Indeks docs |
+| [AGENTS.md](AGENTS.md) | Kontrakt startowy **agenta** |
 | [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Workflow SE end-to-end |
 | [docs/MEMORY_API.md](docs/MEMORY_API.md) | API + CLI + handoff schema |
 | [docs/B10_HANDOFF.md](docs/B10_HANDOFF.md) | B10 projection (hybrid · close · anchors) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektura zaawansowana |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model / Ollama / URL |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A/B + B11/B12 |
 | [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie** Karmin_Ae) |
 | [docs/MNEME.md](docs/MNEME.md) | Mneme-L (meta-język SE) |
-| [docs/CONFIGURE.md](docs/CONFIGURE.md) | Konfigurator CLI + GUI + doctor |
 
 ---
 

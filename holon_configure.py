@@ -195,10 +195,12 @@ CZYM TO JEST
   (stan umysłu / fakty).
 
 SZYBKI START
-  1) python holon_configure.py wizard
-  2) python holon_configure.py doctor
-  3) python agent_boot.py
-  Opcja okienkowa: python holon_configure.py gui
+  1) START.cmd  (albo: python karmin_app.py)  ← norma dla CZŁOWIEKA
+  2) python holon_configure.py wizard         ← setup CLI
+  3) python holon_configure.py doctor
+  4) python agent_boot.py                     ← norma dla AGENTA
+  Configure-only GUI: python holon_configure.py gui
+  Instrukcja: docs/USER_GUIDE.md
 
 JĘZYK (PL / EN)
   • Jednorazowo:   python holon_configure.py --lang en help
@@ -249,10 +251,12 @@ WHAT THIS IS
   (mind state / facts store).
 
 QUICK START
-  1) python holon_configure.py wizard
-  2) python holon_configure.py doctor
-  3) python agent_boot.py
-  GUI: python holon_configure.py gui
+  1) START.cmd  (or: python karmin_app.py)   ← normal HUMAN path
+  2) python holon_configure.py wizard        ← CLI setup
+  3) python holon_configure.py doctor
+  4) python agent_boot.py                    ← AGENT path
+  Configure-only GUI: python holon_configure.py gui
+  Guide: docs/USER_GUIDE.md
 
 LANGUAGE (PL / EN)
   • One-shot:   python holon_configure.py --lang en help

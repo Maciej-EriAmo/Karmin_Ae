@@ -51,6 +51,7 @@ Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 | # | Deliverable | Status |
 |---|-------------|--------|
 | B11 | **Konfigurator** CLI + GUI + doctor (presety SE, `holon_settings.json`) | ✅ 2026-08 |
+| B12 | **Control Center** `karmin_app` / `START.cmd` — norma UX dla człowieka; `surfaces` w handoff | ✅ 2026-08 |
 
 ## Plan C — research (nie blokuje SE)
 

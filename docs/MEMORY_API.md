@@ -59,9 +59,24 @@ python holon_agent_memory.py ablation
 python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
 python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 python holon_configure.py show | wizard | doctor | gui | use se-compact
+python holon_agent_memory.py status [--project P]
+python karmin_app.py --status
 ```
 
-Konfigurator: [CONFIGURE.md](CONFIGURE.md).
+| Powierzchnia | Doc |
+|--------------|-----|
+| Control Center (człowiek) | [USER_GUIDE.md](USER_GUIDE.md) · `START.cmd` |
+| Konfigurator | [CONFIGURE.md](CONFIGURE.md) |
+| Agent boot | [AGENTS.md](../AGENTS.md) · `handoff.surfaces` |
+
+### `surfaces` w handoff (B12)
+
+```json
+"surfaces": {
+  "agent": { "boot": "python agent_boot.py", "status_json": "python karmin_app.py --status" },
+  "human": { "gui": "START.cmd  OR  python karmin_app.py" }
+}
+```
 
 ### B10 — handoff projection
 

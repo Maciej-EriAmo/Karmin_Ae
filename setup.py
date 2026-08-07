@@ -75,6 +75,7 @@ setup(
         "holon_backend_karmin",
         "holon_settings",
         "holon_configure",
+        "karmin_app",
         "agent_boot",
         "prompt_scanner",
         "web_extractor",
@@ -110,6 +111,7 @@ setup(
         "console_scripts": [
             "holon=main:main",
             "holon-configure=holon_configure:main",
+            "karmin-ae=karmin_app:main",
         ],
     },
     

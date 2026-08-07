@@ -78,6 +78,15 @@ class TestSettings(unittest.TestCase):
         code = configure_main(["--lang", "en", "help"])
         self.assertEqual(code, 0)
 
+    def test_surface_status(self):
+        from karmin_app import surface_status
+
+        st = surface_status("Holon")
+        self.assertIn("surfaces", st)
+        self.assertIn("agent_boot", st["surfaces"])
+        self.assertIn("stats", st)
+        self.assertIn("doctor_score", st)
+
 
 if __name__ == "__main__":
     unittest.main()

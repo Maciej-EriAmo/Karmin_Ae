@@ -1,18 +1,72 @@
-# Konfigurator Karmin_Ae
+# Konfigurator Karmin_Ae + Control Center
 
-**Cel:** 30-sekundowy setup lokalnej pamięci SE — profile, handoff, LLM, doctor.  
+**Cel:** setup i codzienna praca z pamięcią SE.  
 **Nie** mylić z `holon_memory.json` (stan umysłu).
+
+Pełna instrukcja człowieka: **[USER_GUIDE.md](USER_GUIDE.md)**.
+
+---
+
+## Norma UX
+
+| Rola | Start | Po co |
+|------|--------|--------|
+| **Człowiek** | `START.cmd` → `karmin_app.py` | Control Center (norma) |
+| **Agent** | `python agent_boot.py` | handoff JSON · [AGENTS.md](../AGENTS.md) |
+| **Power-user** | CLI | configure, memory, Mneme, eval |
+
+```
+człowiek ──► START.cmd / karmin_app.py
+agent    ──► agent_boot.py  (+ surfaces w JSON)
+power    ──► holon_configure / holon_agent_memory / holon_mneme
+```
+
+---
+
+## Control Center (`karmin_app.py`)
+
+```bat
+START.cmd
+python karmin_app.py
+python karmin_app.py --lang en
+python karmin_app.py --status
+python karmin_app.py --status --project Holon
+```
+
+| Zakładka | Funkcje |
+|----------|---------|
+| Start | status store, work, facts, doctor, surfaces |
+| Sesja SE | handoff JSON, filtr projektu / since, zapis `handoff.md`, podgląd boot |
+| Pamięć | remember fact, set-work, close, crystallize |
+| Ustawienia | preset, default_project, ui_lang; link do configure GUI |
+| Pomoc | skrót torów |
+
+Entry point setuptools: `karmin-ae` → `karmin_app:main`.
+
+Alias status (JSON):
+
+```bat
+python holon_agent_memory.py status [--project P]
+```
+
+---
 
 ## Pliki
 
 | Plik | Rola |
 |------|------|
-| `holon_settings.json` | lokalne preferencje (**gitignore**; może mieć API key) |
+| `START.cmd` | dwuklik → Control Center |
+| `karmin_app.py` | panel człowieka + `--status` |
+| `holon_settings.json` | preferencje lokalne (**gitignore**) |
 | `holon_settings.example.json` | szablon w repo |
 | `holon_settings.py` | load/save, presetty, `load_config`, doctor, `ui_lang` |
-| `holon_configure.py` | CLI + GUI (tkinter) + `help` |
+| `holon_configure.py` | CLI + małe GUI configure + `help` |
 
-## Instrukcja w programie
+---
+
+## Konfigurator CLI (`holon_configure.py`)
+
+### Instrukcja w programie
 
 ```bat
 python holon_configure.py help
@@ -20,7 +74,7 @@ python holon_configure.py --lang en help
 python holon_configure.py          # bez komendy = help
 ```
 
-## CLI
+### Komendy
 
 ```bat
 python holon_configure.py show
@@ -30,11 +84,17 @@ python holon_configure.py set default_project Karmazyn
 python holon_configure.py set ui_lang en
 python holon_configure.py lang en
 python holon_configure.py set-override handoff_max_facts 4
+python holon_configure.py set-override handoff_max_facts --clear
 python holon_configure.py wizard
 python holon_configure.py doctor
+python holon_configure.py doctor --json
 python holon_configure.py export-env
+python holon_configure.py export-env --out holon.env
+python holon_configure.py keys
 python holon_configure.py gui
 ```
+
+---
 
 ## Język (PL / EN)
 
@@ -45,7 +105,11 @@ python holon_configure.py gui
 | 3 | `ui_lang` w `holon_settings.json` |
 | 4 | domyślnie **pl** |
 
-GUI: combobox **Język / Language** (zapis przy Save).
+- Control Center: combobox w **Ustawieniach** (+ Zapisz).  
+- Configure GUI: combobox Language.  
+- `export-env` dopisuje `HOLON_UI_LANG=…`.
+
+---
 
 ## Presety
 
@@ -57,6 +121,8 @@ GUI: combobox **Język / Language** (zapis przy Save).
 | `chat` | chat | EriAmo rozmowa |
 | `lab-flat` | flat | ablacja bez Prism |
 
+---
+
 ## Łańcuch Config
 
 ```
@@ -67,20 +133,44 @@ Config.agent()|chat()|flat()
 
 `AgentMemory.open` i `agent_boot` wczytują settings automatycznie.
 
-**default_project:** `HOLON_DEFAULT_PROJECT` → `*.meta.json` last → settings.
+**default_project:** `HOLON_DEFAULT_PROJECT` → `*.meta.json` last → settings `default_project`.
+
+---
 
 ## Doctor (positioning)
 
-`python holon_configure.py doctor` sprawdza gotowość SE i wypisuje macierz:
+```bat
+python holon_configure.py doctor
+```
 
-lokalność · durable fact/work · handoff · hybrid since · crystallize · Mneme · golden eval · agent_boot  
+Sprawdza gotowość SE i wypisuje macierz vs typowa chmurowa agent-memory:
 
-— cechy, których typowa chmurowa „agent memory” zwykle nie daje w pakiecie.
+local-first · durable fact/work · handoff · hybrid since · crystallize · Mneme · golden eval · agent_boot  
 
-## GUI
+W Control Center: przycisk **Doctor** na zakładce Start.
+
+---
+
+## Configure-only GUI
 
 ```bat
 python holon_configure.py gui
 ```
 
-Stdlib **tkinter** — bez dodatkowych pipów. Zapisz / Doctor / Boot how-to / Help / Language.
+Węższe okienko (presety / LLM / doctor) — bez pełnego panelu Pamięć/Sesja.  
+Pełna codzienna praca: **`karmin_app.py`**.
+
+---
+
+## Surfaces w handoff
+
+Po `python agent_boot.py --no-banner` JSON zawiera m.in.:
+
+```json
+"surfaces": {
+  "agent": { "boot": "…", "status_json": "python karmin_app.py --status", … },
+  "human": { "gui": "START.cmd  OR  python karmin_app.py", … }
+}
+```
+
+Agent ma używać `surfaces.agent`; człowiek — `surfaces.human`.

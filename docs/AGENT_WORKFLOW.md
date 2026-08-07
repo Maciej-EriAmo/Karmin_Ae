@@ -4,6 +4,16 @@
 
 Utrzymać **ciągłość między sesjami** Grok/CLI bez wklejania całej historii czatu i bez amnezji po przerwie.
 
+## Kto jest kim
+
+| Rola | Start | Doc |
+|------|--------|-----|
+| **Agent (Ty)** | `python agent_boot.py` | ten plik + [AGENTS.md](../AGENTS.md) |
+| **Człowiek** | `START.cmd` / `karmin_app.py` | [USER_GUIDE.md](USER_GUIDE.md) |
+
+**Nie** zastępuj bootu otwarciem GUI. GUI jest dla operatora; Ty konsumujesz **handoff JSON**.  
+Szybki stan: `python karmin_app.py --status` lub `python holon_agent_memory.py status`.
+
 ## Protokół sesji
 
 ```
@@ -47,6 +57,7 @@ Pola kluczowe w JSON:
 - `anchors` / `chronicle` — kotwice vs log sesji (B10)
 - `recommended_actions` / `suggested_mneme` — co zrobić dalej
 - `agent_protocol` — reguły (nie resetuj store, prefiksy projektów)
+- `surfaces` — **B12** komendy `agent` vs `human` (nie myl torów)
 - `stats.delta_hours` — jak długa przerwa
 
 ### 2. Podczas pracy

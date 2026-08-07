@@ -1614,7 +1614,7 @@ class AgentMemory:
 def _main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Holon agent memory (Grok/CLI)")
     p.add_argument("cmd", choices=[
-        "digest", "remember", "recall", "seed", "stats", "collab-test", "eval",
+        "digest", "remember", "recall", "seed", "stats", "status", "collab-test", "eval",
         "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "close",
         "boot", "crystallize", "watch-remember",
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
@@ -1694,6 +1694,20 @@ def _main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "digest":
         print(am.digest(project=args.project))
+        return 0
+
+    if args.cmd == "status":
+        # czytelny status dla człowieka i agenta (JSON); alias Control Center
+        from karmin_app import surface_status
+
+        print(
+            json.dumps(
+                surface_status(args.project),
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            )
+        )
         return 0
 
     if args.cmd == "boot":

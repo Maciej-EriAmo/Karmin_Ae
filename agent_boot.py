@@ -191,6 +191,9 @@ def main(argv=None) -> int:
             + (f" --project {project}" if project else ""),
             "eval": f'python holon_agent_memory.py --path "{mem_path}" eval',
             "karmin_export": f'python holon_agent_memory.py --path "{mem_path}" karmin-export',
+            "human_gui": f'python "{ROOT / "karmin_app.py"}"  # or START.cmd',
+            "status": f'python "{ROOT / "karmin_app.py"}" --status',
+            "configure": f'python "{ROOT / "holon_configure.py"}" gui',
         }
         boot_meta["protocol_short"] = [
             "1. Start: python agent_boot.py [--project X] [--since 24h] [--compact]",
@@ -201,7 +204,25 @@ def main(argv=None) -> int:
             "6. Store szumi: crystallize [--project X]",
             "7. Nie resetuj holon_memory.json; Holon ≠ KarmazynOs kod",
             "8. KarmazynOs: C:\\Users\\drwis\\KarmazynOs",
+            "9. Człowiek (nie agent): START.cmd / python karmin_app.py",
         ]
+    # Dwa tory: agent=CLI, człowiek=GUI (norma UX poza power-userami)
+    handoff["surfaces"] = {
+        "agent": {
+            "boot": "python agent_boot.py",
+            "contract": "AGENTS.md",
+            "remember": "python holon_agent_memory.py remember --fact \"…\"",
+            "set_work": "python holon_agent_memory.py set-work \"…\"",
+            "close": "python holon_agent_memory.py close --work-text \"…\" --fact-text \"…\"",
+            "status_json": "python karmin_app.py --status",
+        },
+        "human": {
+            "gui": "START.cmd  OR  python karmin_app.py",
+            "configure": "python holon_configure.py gui",
+            "help": "python holon_configure.py help",
+            "note": "GUI is the normal human path; CLI is for power users and agents.",
+        },
+    }
     handoff["agent_boot"] = boot_meta
 
     if args.no_banner:
@@ -210,6 +231,7 @@ def main(argv=None) -> int:
 
     print("=" * 60)
     print(" KARMIN_AE BOOT — Agent Edition SE (silnik Holon); nie cudza baza")
+    print(" human UI: START.cmd / python karmin_app.py   |   agent: this boot")
     print("=" * 60)
     print(f" root    : {ROOT}")
     print(f" memory  : {Path(mem_path).resolve()}")
