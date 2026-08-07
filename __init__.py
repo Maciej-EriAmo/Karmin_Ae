@@ -66,11 +66,6 @@ def get_tasks_manager(tasks_dir="tasks"):
     from tasks import TasksManager
     return TasksManager(tasks_dir=tasks_dir)
 
-def get_holon_fs(root_dir):
-    """Returns HolonFSd instance."""
-    from holon_fs import HolonFSd
-    return HolonFSd(root=root_dir)
-
 
 __all__ = [
     # Version
@@ -97,5 +92,4 @@ __all__ = [
     "get_knowledge_store",
     "get_notes_manager",
     "get_tasks_manager",
-    "get_holon_fs",
 ]

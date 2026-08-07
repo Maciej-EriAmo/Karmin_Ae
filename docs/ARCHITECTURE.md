@@ -28,8 +28,8 @@
 │  LLM slot (optional)                                        │
 │   ChatClient · Ollama / URL / factory / mock                │
 ├────────────────────────────────────────────────────────────┤
-│  Research / security (osobny tor)                           │
-│   HSS papers · security/holo/*.c — NIE wymagane do pamięci  │
+│  Research (archiwum/)                                       │
+│   HSS papers · holon_fs · security/holo/*.c — poza SE       │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,7 +86,7 @@ Session(Config.chat)
 ## Bezpieczeństwo granic
 
 - `holon_memory.json` w `.gitignore` — nie commitować stanu umysłu.  
-- HSS/LSM — dokumentacja w `HSS_Paper_*.md` i `security/`; nie mylić z MemoryAPI.
+- HSS/LSM / HolonFS — w `archiwum/` (research); nie mylić z MemoryAPI.
 
 ## Zależności runtime
 

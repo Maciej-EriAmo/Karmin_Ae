@@ -24,7 +24,7 @@ HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.
 | **Chat EriAmo** | `main.py` → `Session` | **Produkt chat** — `Config.chat()` |
 | **Silnik Holon** | `HoloMem`, embedder, vacuum | wspólny (wewnętrzna nazwa) |
 | **HRR / Prism / Φ** | `holon_holography.py` | opcjonalna złożoność; ablacja `Config.flat()` |
-| **HSS / LSM** | `HSS_Paper_*.md`, `security/` | research security — **nie** część MemoryAPI |
+| **HSS / LSM / HolonFS** | `archiwum/` | research / martwe dema — **nie** część MemoryAPI |
 
 Szczegóły: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Agent: **[AGENTS.md](AGENTS.md)**
 

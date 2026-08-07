@@ -66,7 +66,6 @@ setup(
         "holon_session_secure",
         "holon_llm",
         "holon_watcher",
-        "holon_fs",
         "holon_agent_memory",
         "holon_memory_api",
         "holon_memory_eval",
@@ -97,10 +96,6 @@ setup(
     ],
     
     extras_require={
-        "full": [
-            "xattr>=0.9.0",      # HolonFS xattr support
-            "inotify>=0.2.0",   # HolonFS file watching
-        ],
         "dev": [
             "pytest>=7.0.0",
             "black>=22.0.0",
@@ -112,7 +107,6 @@ setup(
     entry_points={
         "console_scripts": [
             "holon=main:main",
-            "holon-fs=holon_fs:cli",
         ],
     },
     

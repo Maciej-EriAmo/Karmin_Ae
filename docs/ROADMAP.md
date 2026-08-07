@@ -49,7 +49,7 @@ Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 ## Plan C — research (nie blokuje SE)
 
 - Ablacje HRR / Φ w paper-style (smoke B6 już w CLI)  
-- HSS / LSM — osobny tor `security/`  
+- HSS / LSM / HolonFS — `archiwum/` (research, poza SE)
 - Chat UX EriAmo — poza MemoryAPI  
 - Mneme M4–M5 (auto-hub, prompt-only)
 
