@@ -64,6 +64,7 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **karmin_app** | panel człowieka (GUI) | `START.cmd` / `python karmin_app.py` · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
 | **status** | stan JSON (agent+human) | `python karmin_app.py --status` |
 | **agent_boot** | bootstrap JSON | `python agent_boot.py` |
+| **karmin_session** | prosty rytuał (alias) | `python karmin_session.py start\|work\|fact\|done` |
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
 | **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |
 | **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |

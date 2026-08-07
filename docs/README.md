@@ -19,6 +19,7 @@ docs/
 AGENTS.md                ← kontrakt startowy AGENTA (root)
 README.md                ← landing
 START.cmd                ← dwuklik → Control Center (człowiek)
+SESSION.cmd              ← prosty rytuał: start/work/fact/done
 ```
 
 ## KANON startu
@@ -28,6 +29,7 @@ START.cmd                ← dwuklik → Control Center (człowiek)
 | **Człowiek** | `START.cmd` → [USER_GUIDE.md](USER_GUIDE.md) |
 | **Chat / brainstorm** | `START_CHAT.cmd` |
 | **Agent SE** | `python agent_boot.py` → [AGENTS.md](../AGENTS.md) |
+| **Prosty CLI** | `SESSION.cmd` / `karmin_session.py` (4 komendy) |
 
 ## Szybki start
 

@@ -49,9 +49,27 @@ START.cmd
 | Panel (codzień) | `START.cmd` |
 | Chat / brainstorm | `START_CHAT.cmd` lub przycisk w panelu |
 | Agent SE (Grok) | `python agent_boot.py` |
+| Terminal, 4 komendy | `SESSION.cmd` / `karmin_session.py` (niżej) |
 
 Albo: `python karmin_app.py`.  
 Brak okienka (tkinter): `python holon_configure.py wizard` (**advanced**).
+
+### Minimalny rytuał (żeby nie było trudno)
+
+**Nie musisz** na co dzień: crystallize, Mneme, configure, presetów, `--rich`.
+
+| Krok | Komenda |
+|------|---------|
+| 1. Start | `python karmin_session.py start --project Karmazyn` |
+| 2. Wątek | `python karmin_session.py work "co robie"` |
+| 3. Trwałe | `python karmin_session.py fact "co ma przezyc"` (gdy trzeba) |
+| 4. Koniec | `python karmin_session.py done` (zapyta) albo `done --fact "..." --work "..."` |
+
+Alias Windows: `SESSION.cmd start` · `SESSION.cmd status` · …
+
+**Albo jeszcze prościej:** tylko panel `START.cmd` → Pamięć / linia poleceń (`fact` / `work` / przycisk close).
+
+To jest cała „administracja” na zwykły dzień. Reszta = advanced.
 
 ---
 

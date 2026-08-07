@@ -24,8 +24,10 @@ HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.
 | **Człowiek** | `START.cmd` |
 | **Chat / brainstorm** | `START_CHAT.cmd` (albo przycisk w panelu) |
 | **Agent SE** | `python agent_boot.py` |
+| **Prosty rytuał CLI** | `SESSION.cmd` → `start` / `work` / `fact` / `done` |
 
-Reszta (configure, Mneme, eval, power CLI) = **advanced** — niżej i w [docs/](docs/README.md).
+Minimalnie: **start → work → (fact) → done**. Bez crystallize/Mneme na co dzień.  
+Reszta = **advanced** — [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 ---
 
