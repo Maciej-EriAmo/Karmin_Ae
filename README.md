@@ -1,10 +1,15 @@
-# Holon
+# Karmin_Ae (Agent Edition)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-advanced-blue.svg)](docs/README.md)
 
-**Trwała, czasowa pamięć lokalna dla agenta SE (Grok/CLI) i sesji czatu EriAmo.**  
+**Trwała, lokalna pamięć SE dla agenta (Grok/CLI) i sesji czatu EriAmo.**  
+**Widzialna marka:** **Karmin_Ae** — *Agent Edition* (nie mylić z **Karmin_DB** / skarbcem).  
+**Silnik w kodzie:** Holon (`holon_*.py`) — nazwy plików bez wymuszonego rename.  
 **Wersja:** **v5.13.0** — Plan B + B10 handoff projection (hybrid since · close · anchors).
+
+> Dawniej workspace/repo: *holonOs* (kolizja nazwy zewnętrznej).  
+> Katalog i repo: **Karmin_Ae**. Pliki `holon_*` mogą zostać.
 
 HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.  
 **Wartość codzienna:** fact · work · pastness · handoff · inject do promptu — bez GPU.
@@ -17,17 +22,20 @@ HRR / macierz Φ / HSS to warstwy badawcze w tym samym monorepo.
 |---------|---------|--------|
 | **Pamięć agenta** | `holon_agent_memory.py`, `MemoryAPI` | **Produkt SE** — `Config.agent()` |
 | **Chat EriAmo** | `main.py` → `Session` | **Produkt chat** — `Config.chat()` |
-| **Silnik** | `HoloMem`, embedder, vacuum | wspólny |
+| **Silnik Holon** | `HoloMem`, embedder, vacuum | wspólny (wewnętrzna nazwa) |
 | **HRR / Prism / Φ** | `holon_holography.py` | opcjonalna złożoność; ablacja `Config.flat()` |
 | **HSS / LSM** | `HSS_Paper_*.md`, `security/` | research security — **nie** część MemoryAPI |
 
 Szczegóły: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Agent: **[AGENTS.md](AGENTS.md)**
+
+**Karmin_DB** (skarbiec, mirror) ≠ **Karmin_Ae** (pamięć agenta). Patrz [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md).
 
 ---
 
 ## Quick start (pamięć SE)
 
 ```bash
+cd C:\Users\drwis\Karmin_Ae
 pip install -r requirements.txt
 
 # === START DLA AGENTA (jedna komenda) ===
@@ -77,56 +85,19 @@ Patrz tez: [AGENTS.md](AGENTS.md) (kontrakt startowy).
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architektura zaawansowana |
 | [docs/LLM_SLOT.md](docs/LLM_SLOT.md) | Lokalny model / Ollama / URL |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Plan A (done) + backlog B/C |
-| [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie SQLite**) |
-| [docs/MNEME.md](docs/MNEME.md) | **Mneme** — mała baza SE + meta-język (graf + RECALL) |
+| [docs/KARMIN_BRIDGE.md](docs/KARMIN_BRIDGE.md) | **Karmin_DB** mirror/backup (**nie** Karmin_Ae) |
+| [docs/MNEME.md](docs/MNEME.md) | Mneme-L (meta-język SE) |
 
 ---
 
-## Profile i env
+## Repo
 
-```text
-Config.chat()    # main.py / Session
-Config.agent()   # AgentMemory (domyślnie)
-Config.flat()    # bez Prism
-
-HOLON_PROFILE=agent|chat|flat
-HOLON_LLM_BACKEND=auto|local|ollama|openai|mock
-HOLON_LLM_BASE_URL=http://127.0.0.1:8080/v1
-```
+- **GitHub:** `https://github.com/Maciej-EriAmo/Karmin_Ae`  
+- **Katalog lokalny:** `C:\Users\drwis\Karmin_Ae`  
+- **Silnik (pliki):** nadal `holon_*.py` — rename opcjonalny, nie wymagany  
 
 ---
 
-## Chat (EriAmo)
+## License
 
-```bash
-python main.py
-```
-
-Wymaga backendu LLM (Ollama / klucz API / local URL) — patrz [docs/LLM_SLOT.md](docs/LLM_SLOT.md).  
-Bez LLM pamięć agentowa nadal działa.
-
----
-
-## HSS (research)
-
-Osobny tor: paper `HSS_Paper_v2.5.0.md` (+ PL), kod `security/holo/`, demo `hss_demo.py`.  
-**Nie jest wymagany** do `remember` / `handoff`.
-
----
-
-## Metryki
-
-| Źródło | Znaczenie |
-|--------|-----------|
-| `python holon_agent_memory.py eval` | **Kanoniczna** reggresja pamięci (golden) |
-| `python holon_agent_memory.py ablation` | B6: flat vs prism (smoke) |
-| CI `.github/workflows/holon-eval.yml` | B5: eval + unittest na PR |
-| Wewnętrzne demo recall / HSS 20/20 | Lab / paper — nie public leaderboard vs Mem0 |
-
----
-
-## Licencja
-
-MIT — [LICENSE](LICENSE)
-
-**Stan umysłu** (`holon_memory.json`, `*_kurz.json`) jest w `.gitignore` i nie trafia do repo.
+MIT — zob. [LICENSE](LICENSE).

@@ -21,7 +21,7 @@ Utrzymać **ciągłość między sesjami** Grok/CLI bez wklejania całej histori
 ### 1. Start
 
 ```bash
-cd C:\Users\drwis\holonOs
+cd C:\Users\drwis\Karmin_Ae
 python agent_boot.py
 # albo:
 python agent_boot.py --project Karmazyn

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-agent_boot.py — JEDNA komenda startu sesji SE (Grok / CLI) w holonOs.
+agent_boot.py — JEDNA komenda startu sesji SE (Grok / CLI) w Karmin_Ae.
 
-  cd C:\\Users\\drwis\\holonOs
+  cd C:\\Users\\drwis\\Karmin_Ae
   python agent_boot.py
   python agent_boot.py --project Karmazyn
   python agent_boot.py --project Holon --full
@@ -189,7 +189,7 @@ def main(argv=None) -> int:
         return 0
 
     print("=" * 60)
-    print(" HOLON AGENT BOOT — użyj TEJ pamięci, nie cudzej bazy w głowie")
+    print(" KARMIN_AE BOOT — Agent Edition SE (silnik Holon); nie cudza baza")
     print("=" * 60)
     print(f" root    : {ROOT}")
     print(f" memory  : {Path(mem_path).resolve()}")

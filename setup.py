@@ -51,7 +51,7 @@ setup(
     description="Cognitive Architecture Layer for LLMs + SE agent surface",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Maciej-EriAmo/holonOs",
+    url="https://github.com/Maciej-EriAmo/Karmin_Ae",
     
     # Package discovery
     py_modules=[

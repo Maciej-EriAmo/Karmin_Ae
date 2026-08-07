@@ -1,16 +1,18 @@
 # AGENTS.md — ścieżka dla Grok / CLI (czytaj TO najpierw)
 
-> **Holon v5.13** — Plan B + B10 (boot · hybrid since · close · anchors · crystallize · handoff-md · Mneme).  
+> **Karmin_Ae (Agent Edition)** — widzialna marka · silnik Holon v5.13 w plikach `holon_*`.  
+> Plan B + B10 (boot · hybrid since · close · anchors · crystallize · handoff-md · Mneme-L).  
 > **Cudze chwalicie, swego nie znacie.**  
-> W tym workspace pamięć SE **już jest**: Holon + Mneme + handoff.  
-> Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.
+> W tym workspace pamięć SE **już jest**: Karmin_Ae / Holon engine + handoff.  
+> Nie szukaj Mem0 / SQLite / „jakiejś bazy” — **odpal boot**.  
+> **Karmin_Ae ≠ Karmin_DB** (skarbiec).
 
 ---
 
 ## 0. OBOWIĄZKOWY START SESJI (jedna komenda)
 
 ```bat
-cd /d C:\Users\drwis\holonOs
+cd /d C:\Users\drwis\Karmin_Ae
 python agent_boot.py
 ```
 
@@ -101,7 +103,7 @@ python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 
 | Ścieżka | Rola |
 |---------|------|
-| `C:\Users\drwis\holonOs` | **pamięć SE + ten plik** |
+| `C:\Users\drwis\Karmin_Ae` | **pamięć SE (Karmin_Ae) + ten plik** · dawniej holonOs |
 | `C:\Users\drwis\KarmazynOs` | runtime / OS / Rust — **nie** fork Holona |
 | `C:\Users\drwis\DBase` | Karmin_DB / Cynober — skarbiec, nie handoff |
 

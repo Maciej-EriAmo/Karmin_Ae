@@ -22,7 +22,7 @@ Usage (chat EriAmo):
     response = session.chat("Hello!")
 
 Author: Maciej Mazur
-GitHub: github.com/Maciej-EriAmo/holonOs
+GitHub: github.com/Maciej-EriAmo/Karmin_Ae (brand Karmin_Ae; engine holon_*)
 """
 
 __version__ = "5.12.0"

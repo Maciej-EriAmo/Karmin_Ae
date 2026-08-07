@@ -54,7 +54,7 @@ AGENT_SEED: Tuple[Tuple[str, str], ...] = (
      "Partner użytkownika: Maciek (EriAmo). Komunikacja po polsku, partnersko. "
      "Holon = pamięć SE; KarmazynOs = osobny monorepo runtime (nie fork Holona)."),
     ("fact",
-     "Agent CLI: Grok (xAI). OBOWIĄZKOWY start: `cd C:\\Users\\drwis\\holonOs` "
+     "Agent CLI: Grok (xAI). OBOWIĄZKOWY start: `cd C:\\Users\\drwis\\Karmin_Ae` "
      "&& `python agent_boot.py` (lub agent_boot.cmd). Potem Mneme-L / remember. "
      "Nie chwal cudzych memory SaaS — tu jest własny stack SE."),
     ("fact",
