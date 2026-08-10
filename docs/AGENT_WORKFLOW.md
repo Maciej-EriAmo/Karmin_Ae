@@ -27,14 +27,30 @@ Opis: [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md).
 ```
 ┌─────────────┐     handoff JSON      ┌──────────────┐
 │  Agent start │ ───────────────────► │  Kontekst SE │
-└─────────────┘                       └──────┬───────┘
-                                             │ praca w Karmazyn/Holon/…
+│ agent_boot   │                      └──────┬───────┘
+└─────────────┘                              │
+        │                                    │
+        ▼                                    │
+  assist (Ollama gemma3:4b)                  │
+  orient / draft-close / ask                 │
                                              ▼
                                       remember / set-work
                                              │
                                              ▼
+                                      close / crystallize
                                       save (holon_memory.json)
 ```
+
+**Pomocnik agenta** (nie chat człowieka):
+
+```bash
+python holon_agent_memory.py assist --project Holon
+python holon_agent_memory.py assist --task draft-close --project Holon
+python holon_agent_memory.py assist --ask "co dalej?" --project Holon
+```
+
+Wymaga `ollama serve` + model z `helper_llm_model` (domyślnie `gemma3:4b`).  
+Config: `helper_llm_backend` / `helper_llm_model` w `holon_settings.json`.
 
 ### 1. Start
 

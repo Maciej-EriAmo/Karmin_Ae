@@ -6,14 +6,15 @@ Kolejność (``backend=auto``):
   1. Zarejestrowana fabryka lokalna (``register_local_model_factory``)
   2. HOLON_LLM_BASE_URL / cfg.llm_base_url — dowolny OpenAI-compatible (llama.cpp, vLLM…)
   3. Ollama na localhost:11434
-  4. GROQ_API_KEY
-  5. DEEPSEEK_API_KEY
-  6. None → brak LLM (pamięć i tak działa)
+  4. Gemini (GEMINI_API_KEY / GOOGLE_API_KEY) — OpenAI-compatible Google AI
+  5. GROQ_API_KEY
+  6. DEEPSEEK_API_KEY
+  7. None → brak LLM (pamięć i tak działa)
 
 Env (priorytet nad auto-detect gdy ustawione wprost):
-  HOLON_LLM_BACKEND = auto|local|ollama|openai|groq|deepseek|mock
+  HOLON_LLM_BACKEND = auto|local|ollama|openai|gemini|google|groq|deepseek|mock
   HOLON_LLM_BASE_URL, HOLON_LLM_MODEL, HOLON_LLM_API_KEY
-  OLLAMA_MODEL
+  OLLAMA_MODEL, GEMINI_API_KEY, GOOGLE_API_KEY, GEMINI_MODEL
 """
 
 from __future__ import annotations
@@ -154,6 +155,29 @@ def _env(name: str, default: str = "") -> str:
     return (os.environ.get(name) or default).strip()
 
 
+def _is_http_url(url: str) -> bool:
+    """True tylko dla http(s)://… — ścieżki dyskowe (np. folder modeli Ollamy) nie są base_url."""
+    u = (url or "").strip().lower()
+    return u.startswith("http://") or u.startswith("https://")
+
+
+# Google AI Studio / Gemini — OpenAI-compatible chat completions
+GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+
+
+def _gemini_api_key(explicit: Optional[str] = None) -> str:
+    """Klucz z argumentu, HOLON_LLM_API_KEY, GEMINI_API_KEY lub GOOGLE_API_KEY."""
+    if explicit is not None and str(explicit).strip():
+        return str(explicit).strip()
+    return (
+        _env("HOLON_LLM_API_KEY")
+        or _env("GEMINI_API_KEY")
+        or _env("GOOGLE_API_KEY")
+        or _env("GOOGLE_AI_API_KEY")
+    )
+
+
 def build_llm_client(
     api_key: Optional[str] = None,
     model: Optional[str] = None,
@@ -169,13 +193,21 @@ def build_llm_client(
     """
     be = (backend or _env("HOLON_LLM_BACKEND") or _env("HOLON_LLM") or "auto").lower()
     m = model or _env("HOLON_LLM_MODEL") or _env("OLLAMA_MODEL") or ""
-    url = (base_url or _env("HOLON_LLM_BASE_URL") or "").rstrip("/")
+    url_raw = (base_url or _env("HOLON_LLM_BASE_URL") or "").strip().rstrip("/")
+    url = url_raw if _is_http_url(url_raw) else ""
     key = api_key if api_key is not None else _env("HOLON_LLM_API_KEY")
     timeout = float(timeout_s or _env("HOLON_LLM_TIMEOUT", "120") or 120)
 
     def log(msg: str) -> None:
         if not quiet:
             print(msg)
+
+    if url_raw and not url:
+        log(
+            f"[LLM] llm_base_url nie jest URL-em HTTP(S) ({url_raw!r}) — ignoruję. "
+            "Dla Ollamy zostaw puste (auto :11434/v1) albo http://localhost:11434/v1; "
+            "ścieżka folderu modeli (np. ~/.ollama/models) nie jest API."
+        )
 
     if be == "mock":
         log("[LLM] Backend: mock")
@@ -223,7 +255,25 @@ def build_llm_client(
             log("[LLM] ollama: brak serwera na :11434")
             return None
 
-    # 4) Groq
+    # 4) Google Gemini (AI Studio) — OpenAI-compatible endpoint
+    gemini_key = _gemini_api_key(key if be in ("gemini", "google") else None)
+    if be in ("auto", "gemini", "google") and gemini_key:
+        mm = m or _env("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+        log(f"[LLM] Backend: Gemini → {mm}")
+        return OpenAIClient(
+            api_key=gemini_key,
+            base_url=GEMINI_OPENAI_BASE,
+            model=mm,
+            timeout_s=timeout,
+        )
+    if be in ("gemini", "google"):
+        log(
+            "[LLM] gemini: brak klucza. Ustaw GEMINI_API_KEY lub GOOGLE_API_KEY "
+            "(albo HOLON_LLM_API_KEY) z https://aistudio.google.com/apikey"
+        )
+        return None
+
+    # 5) Groq
     groq_key = key if (key or "").startswith("gsk_") else _env("GROQ_API_KEY")
     if be in ("auto", "groq") and groq_key.startswith("gsk_"):
         mm = m or "llama-3.3-70b-versatile"
@@ -235,7 +285,7 @@ def build_llm_client(
             timeout_s=timeout,
         )
 
-    # 5) DeepSeek
+    # 6) DeepSeek
     ds_key = key if be == "deepseek" else _env("DEEPSEEK_API_KEY")
     if be in ("auto", "deepseek") and ds_key:
         mm = m or "deepseek-chat"
@@ -251,8 +301,8 @@ def build_llm_client(
         log(f"[LLM] Backend '{be}' niedostępny.")
     else:
         log(
-            "[LLM] Brak backendu. Opcje: ollama serve | HOLON_LLM_BASE_URL=… | "
-            "register_local_model_factory() | GROQ_API_KEY."
+            "[LLM] Brak backendu. Opcje: ollama serve | GEMINI_API_KEY | "
+            "HOLON_LLM_BASE_URL=… | GROQ_API_KEY | register_local_model_factory()."
         )
     return None
 
@@ -263,8 +313,10 @@ def describe_llm_slot() -> Dict[str, Any]:
         "local_factory_registered": _LOCAL_FACTORY is not None,
         "env_backend": _env("HOLON_LLM_BACKEND") or _env("HOLON_LLM") or "auto",
         "env_base_url": _env("HOLON_LLM_BASE_URL"),
-        "env_model": _env("HOLON_LLM_MODEL") or _env("OLLAMA_MODEL"),
+        "env_model": _env("HOLON_LLM_MODEL") or _env("OLLAMA_MODEL") or _env("GEMINI_MODEL"),
         "ollama_up": _ollama_running(),
+        "has_gemini": bool(_gemini_api_key()),
         "has_groq": _env("GROQ_API_KEY").startswith("gsk_"),
         "has_deepseek": bool(_env("DEEPSEEK_API_KEY")),
+        "gemini_default_model": DEFAULT_GEMINI_MODEL,
     }

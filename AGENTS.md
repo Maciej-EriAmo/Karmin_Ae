@@ -64,6 +64,7 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **karmin_app** | panel człowieka (GUI) | `START.cmd` / `python karmin_app.py` · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
 | **status** | stan JSON (agent+human) | `python karmin_app.py --status` |
 | **agent_boot** | bootstrap JSON | `python agent_boot.py` |
+| **assist (helper)** | **pomocnik SE dla agenta** (orient / draft-close / ask) | `python holon_agent_memory.py assist` · lokalnie Ollama `gemma3:4b` · opc. cloud Gemini |
 | **karmin_session** | prosty rytuał (alias) | `python karmin_session.py start\|work\|fact\|done` |
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
 | **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |
@@ -88,13 +89,17 @@ Docs (głębiej):
 ## 2. Protokół w trakcie sesji
 
 ```text
-boot → (opcjonalnie) suggested_mneme / RECALL/NEAR/WALK
+boot → assist (Ollama gemma3:4b)   (python holon_agent_memory.py assist)
+     → (opcjonalnie) suggested_mneme / RECALL/NEAR/WALK
      → praca w kodzie (Holon lub KarmazynOs — nie mylić)
      → HOLD fact / remember --fact   (trwałe)
      → set-work / HOLD work          (1 aktywny wątek)
+     → assist --task draft-close     (draft WORK/FACT; agent zatwierdza)
      → close --work-text --fact-text (preferowane domknięcie)
      → crystallize [--project P]     (gdy store szumi)
 ```
+
+**Pomocnik agenta** = `helper_llm_*` (domyślnie **Ollama / gemma3:4b**). Chat człowieka = `llm_*` (też może być Ollama).
 
 ### Mneme (przykłady)
 

@@ -252,6 +252,8 @@ def main(argv=None) -> int:
         "agent": {
             "boot": "python agent_boot.py",
             "contract": "AGENTS.md",
+            "assist": "python holon_agent_memory.py assist  # Ollama gemma3:4b helper",
+            "assist_close": "python holon_agent_memory.py assist --task draft-close",
             "remember": 'python holon_agent_memory.py remember --fact "..."',
             "set_work": 'python holon_agent_memory.py set-work "..."',
             "close": 'python holon_agent_memory.py close --work-text "..." --fact-text "..."',
@@ -293,7 +295,7 @@ def main(argv=None) -> int:
     _safe_out("-" * 60)
     _safe_out(payload)
     _safe_out("-" * 60)
-    if not args.compact and "commands" in boot_meta:
+    if not use_compact and "commands" in boot_meta:
         _safe_out(" DALEJ (kopiuj / odpalaj):")
         for k, cmd in boot_meta["commands"].items():
             _safe_out(f"  [{k}] {cmd}")

@@ -1715,6 +1715,7 @@ def _main(argv: Optional[List[str]] = None) -> int:
         "digest", "remember", "recall", "seed", "stats", "status", "collab-test", "eval",
         "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "close",
         "boot", "crystallize", "watch-remember",
+        "assist", "helper",  # Gemini/SE helper for agent (not chat)
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
@@ -1774,6 +1775,21 @@ def _main(argv: Optional[List[str]] = None) -> int:
         "--inbox",
         default="remember_inbox.jsonl",
         help="watch-remember: ścieżka JSONL inbox (B4)",
+    )
+    p.add_argument(
+        "--task",
+        default="orient",
+        help="assist: orient|hygiene|draft-close|ask (Gemini helper)",
+    )
+    p.add_argument(
+        "--ask",
+        default="",
+        help="assist: pytanie do pomocnika Gemini",
+    )
+    p.add_argument(
+        "--json",
+        action="store_true",
+        help="assist/llm-slot: surowy JSON",
     )
     p.add_argument(
         "--poll",
@@ -2010,10 +2026,50 @@ def _main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "llm-slot":
         import json as _json
         from holon_llm import describe_llm_slot, build_llm_client
-        print(_json.dumps(describe_llm_slot(), indent=2, ensure_ascii=False))
+        from holon_helper import describe_helper_slot, build_helper_client
+        slot = describe_llm_slot()
+        slot["helper"] = describe_helper_slot()
+        print(_json.dumps(slot, indent=2, ensure_ascii=False))
         c = build_llm_client(backend="mock", quiet=True)
         print("mock_client:", type(c).__name__ if c else None)
+        hc = build_helper_client(quiet=True)
+        print(
+            "helper_client:",
+            type(hc).__name__ if hc else None,
+            getattr(hc, "model", None) if hc else "(brak — ustaw GEMINI_API_KEY)",
+        )
         return 0
+
+    if args.cmd in ("assist", "helper"):
+        import json as _json
+        from holon_helper import HolonHelper
+
+        helper = HolonHelper(am, project=args.project or "", quiet=True)
+        task = (args.task or "orient").strip()
+        ask = (args.ask or args.text or "").strip()
+        if ask and task in ("orient", "hygiene", ""):
+            task = "ask"
+        rep = helper.run(task, text=ask)
+        if args.json:
+            print(_json.dumps(rep.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(
+                f"[assist] task={rep.task} backend={rep.backend} "
+                f"model={rep.model} llm={rep.llm_used} ok={rep.ok}"
+            )
+            if rep.error:
+                print("ERROR:", rep.error)
+            if rep.text:
+                print(rep.text)
+            st = rep.structured or {}
+            if st.get("work_text") or st.get("fact_text"):
+                print("\nWORK:", st.get("work_text") or "")
+                print("FACT:", st.get("fact_text") or "")
+            if rep.actions:
+                print("\n--- actions ---")
+                for a in rep.actions:
+                    print(" ", a)
+        return 0 if rep.ok else 1
 
     if args.cmd == "karmin-slot":
         import json as _json

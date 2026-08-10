@@ -53,6 +53,11 @@ SAFE_OVERRIDE_KEYS = frozenset(
         "llm_model",
         "llm_api_key",
         "llm_timeout_s",
+        "helper_llm_backend",
+        "helper_llm_model",
+        "helper_llm_api_key",
+        "helper_llm_timeout_s",
+        "helper_enabled",
         "conversation_history_size",
     }
 )
@@ -216,6 +221,11 @@ def _coerce_value(key: str, raw: Any) -> Any:
     return raw
 
 
+def _looks_like_http_url(value: str) -> bool:
+    u = (value or "").strip().lower()
+    return u.startswith("http://") or u.startswith("https://")
+
+
 def sanitize_overrides(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if not isinstance(raw, dict):
@@ -226,7 +236,14 @@ def sanitize_overrides(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             continue
         if v is None or v == "":
             continue
-        out[key] = _coerce_value(key, v)
+        coerced = _coerce_value(key, v)
+        # llm_base_url = endpoint HTTP, NIE ścieżka do folderu modeli Ollamy
+        if key == "llm_base_url":
+            s = str(coerced).strip()
+            if not _looks_like_http_url(s):
+                continue  # drop invalid path-like values
+            coerced = s.rstrip("/")
+        out[key] = coerced
     return out
 
 
@@ -282,6 +299,18 @@ def save_settings(
     return p
 
 
+def preset_controlled_keys() -> frozenset:
+    """Klucze ustawiane przez którykolwiek produktowy preset (handoff/store/…).
+
+    Przy ``apply_preset`` te klucze są podmieniane; reszta user overrides
+    (np. ``llm_backend`` / ``llm_model`` / ``llm_base_url``) zostaje.
+    """
+    keys: set = set()
+    for p in PRESETS.values():
+        keys.update((p.get("overrides") or {}).keys())
+    return frozenset(keys)
+
+
 def apply_preset(name: str, current: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     key = (name or "").strip().lower()
     if key not in PRESETS:
@@ -290,12 +319,15 @@ def apply_preset(name: str, current: Optional[Dict[str, Any]] = None) -> Dict[st
     preset = PRESETS[key]
     cur["preset"] = key
     cur["profile"] = preset["profile"]
-    # merge overrides: preset wins keys, keep unrelated user overrides
-    merged = dict(cur.get("overrides") or {})
-    # drop keys that previous presets might have set? keep user extras; apply preset on top
-    merged.update(sanitize_overrides(preset.get("overrides") or {}))
-    # for clean preset switch: start from preset only
-    cur["overrides"] = sanitize_overrides(preset.get("overrides") or {})
+    # Zachowaj user overrides spoza presetu (LLM itd.); podmień tylko controlled keys
+    controlled = preset_controlled_keys()
+    kept = {
+        k: v
+        for k, v in (cur.get("overrides") or {}).items()
+        if k not in controlled
+    }
+    kept.update(sanitize_overrides(preset.get("overrides") or {}))
+    cur["overrides"] = sanitize_overrides(kept)
     return cur
 
 
@@ -315,17 +347,50 @@ def apply_env_llm(cfg: Config) -> Config:
         cfg.llm_backend = be.strip().lower()
     if os.environ.get("HOLON_LLM_BASE_URL"):
         cfg.llm_base_url = os.environ["HOLON_LLM_BASE_URL"].strip()
-    if os.environ.get("HOLON_LLM_MODEL") or os.environ.get("OLLAMA_MODEL"):
+    if (
+        os.environ.get("HOLON_LLM_MODEL")
+        or os.environ.get("OLLAMA_MODEL")
+        or os.environ.get("GEMINI_MODEL")
+    ):
         cfg.llm_model = (
-            os.environ.get("HOLON_LLM_MODEL") or os.environ.get("OLLAMA_MODEL") or ""
+            os.environ.get("HOLON_LLM_MODEL")
+            or os.environ.get("OLLAMA_MODEL")
+            or os.environ.get("GEMINI_MODEL")
+            or ""
         ).strip()
+    # klucz: HOLON_* wygrywa; potem Gemini / Google AI Studio
     if os.environ.get("HOLON_LLM_API_KEY"):
         cfg.llm_api_key = os.environ["HOLON_LLM_API_KEY"].strip()
+    elif not (cfg.llm_api_key or "").strip():
+        for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_API_KEY"):
+            if os.environ.get(k):
+                cfg.llm_api_key = os.environ[k].strip()
+                break
     if os.environ.get("HOLON_LLM_TIMEOUT"):
         try:
             cfg.llm_timeout_s = float(os.environ["HOLON_LLM_TIMEOUT"])
         except ValueError:
             pass
+    # Pomocnik SE (Gemini domyślnie)
+    if os.environ.get("HOLON_HELPER_LLM_BACKEND"):
+        cfg.helper_llm_backend = os.environ["HOLON_HELPER_LLM_BACKEND"].strip().lower()
+    if os.environ.get("HOLON_HELPER_LLM_MODEL") or os.environ.get("GEMINI_MODEL"):
+        cfg.helper_llm_model = (
+            os.environ.get("HOLON_HELPER_LLM_MODEL")
+            or os.environ.get("GEMINI_MODEL")
+            or cfg.helper_llm_model
+            or ""
+        ).strip()
+    if os.environ.get("HOLON_HELPER_LLM_API_KEY"):
+        cfg.helper_llm_api_key = os.environ["HOLON_HELPER_LLM_API_KEY"].strip()
+    elif not (cfg.helper_llm_api_key or "").strip():
+        for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_API_KEY"):
+            if os.environ.get(k):
+                cfg.helper_llm_api_key = os.environ[k].strip()
+                break
+    if os.environ.get("HOLON_HELPER_ENABLED"):
+        raw = os.environ["HOLON_HELPER_ENABLED"].strip().lower()
+        cfg.helper_enabled = raw not in ("0", "false", "no", "off")
     return cfg
 
 
@@ -533,8 +598,11 @@ def config_field_help() -> List[Tuple[str, str]]:
         ("set_work_max_active", "max aktywnych work (domyślnie 1)"),
         ("remember_merge_sim", "próg semantic merge w remember"),
         ("use_prism", "PrismRouter on/off"),
-        ("llm_backend", "auto|ollama|local|openai|mock"),
+        ("llm_backend", "auto|ollama|gemini|local|openai|groq|deepseek|mock"),
         ("llm_base_url", "OpenAI-compatible URL"),
-        ("llm_model", "nazwa modelu"),
+        ("llm_model", "nazwa modelu (chat)"),
+        ("helper_llm_backend", "pomocnik SE: gemini|ollama|auto|…"),
+        ("helper_llm_model", "model pomocnika (np. gemini-2.0-flash)"),
+        ("helper_enabled", "True|False — slot holon_helper / assist"),
         ("llm_api_key", "klucz API (lokalny plik — nie commituj)"),
     ]

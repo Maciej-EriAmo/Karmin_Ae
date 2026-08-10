@@ -106,14 +106,24 @@ class Config:
         "i jak to wpływa na Twój model otoczenia:\n"
     )
 
-    # ── LLM / lokalny model (wszczep) ─────────────────────────────────────
-    # backend: auto | ollama | local | openai | groq | deepseek | mock
+    # ── LLM / lokalny model (wszczep) — chat / Session ────────────────────
+    # backend: auto | ollama | gemini | local | openai | groq | deepseek | mock
     # local = fabryka z register_local_model_factory() LUB OpenAI-compatible URL
+    # gemini = Google AI Studio (GEMINI_API_KEY / GOOGLE_API_KEY)
     llm_backend: str = "auto"
     llm_base_url: str = ""  # np. http://127.0.0.1:8080/v1 (llama.cpp server)
     llm_model: str = ""
     llm_api_key: str = ""
     llm_timeout_s: float = 120.0
+
+    # ── Pomocnik SE (Holon helper) — osobny slot od czatu ─────────────────
+    # Domyślnie Ollama lokalnie (gemma3:4b) — draft close/fact, orient, ask.
+    # Cloud Gemini: helper_llm_backend=gemini + GEMINI_API_KEY.
+    helper_llm_backend: str = "ollama"
+    helper_llm_model: str = "gemma3:4b"
+    helper_llm_api_key: str = ""  # gemini cloud: GEMINI_API_KEY; ollama: nie trzeba
+    helper_llm_timeout_s: float = 120.0
+    helper_enabled: bool = True
 
     # ── fabryki profili ───────────────────────────────────────────────────
 

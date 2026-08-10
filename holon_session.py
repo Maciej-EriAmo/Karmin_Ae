@@ -216,7 +216,11 @@ class Session:
 
     def _call_llm(self, messages: List[Dict[str, str]]) -> str:
         if not self._client:
-            return "[Mock] Brak backendu LLM. Ustaw GROQ_API_KEY lub GEMMA_MODEL_PATH."
+            return (
+                "[Mock] Brak backendu LLM. "
+                "Ollama: ollama serve · Gemini: GEMINI_API_KEY · "
+                "albo HOLON_LLM_BACKEND + model w holon_settings.json."
+            )
         try:
             return self._client.chat_completion(messages, temperature=0.7, max_tokens=1024)
         except Exception as e:
