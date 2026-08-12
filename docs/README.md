@@ -13,10 +13,11 @@ docs/
   ARCHITECTURE.md        ← moduły, przepływ, profile
   AII_PROTO_EMOTIONS.md  ← proto-emocje AII (kod + grupa docelowa)
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
-  LLM_SLOT.md            ← wszczep lokalnego modelu
+  LLM_SLOT.md            ← wszczep lokalnego modelu + helper SE (holon_helper)
   KARMIN_BRIDGE.md       ← Karmin_DB mirror (nie SQLite)
   MNEME.md               ← mała baza SE + meta-język (Mneme-L)
 AGENTS.md                ← kontrakt startowy AGENTA (root)
+holon_helper.py          ← pomocnik SE agenta (assist / orient / draft-close)
 README.md                ← landing
 START.cmd                ← dwuklik → Control Center (człowiek)
 SESSION.cmd              ← prosty rytuał: start/work/fact/done
@@ -43,13 +44,14 @@ START.cmd
 ```bat
 python agent_boot.py --since 24h --compact --no-banner
 python karmin_app.py --status
+python holon_agent_memory.py assist --project Holon
 python holon_agent_memory.py crystallize --project Holon
 python holon_agent_memory.py eval
 python holon_configure.py help
 python -m holon_mneme --repl
 ```
 
-Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · configure: [CONFIGURE.md](CONFIGURE.md).
+Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · helper LLM: [LLM_SLOT.md](LLM_SLOT.md) · configure: [CONFIGURE.md](CONFIGURE.md).
 
 ## Plan B / B+ (SE surface) — status
 

@@ -41,16 +41,26 @@ Opis: [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md).
                                       save (holon_memory.json)
 ```
 
-**Pomocnik agenta** (nie chat człowieka):
+**Pomocnik agenta** (nie chat człowieka) — moduł [`holon_helper.py`](../holon_helper.py):
 
 ```bash
 python holon_agent_memory.py assist --project Holon
 python holon_agent_memory.py assist --task draft-close --project Holon
+python holon_agent_memory.py assist --task hygiene --project Holon
 python holon_agent_memory.py assist --ask "co dalej?" --project Holon
+python -m holon_helper --project Holon
 ```
 
+| Task | Po co |
+|------|--------|
+| `orient` | po bootcie: stan, luki, komendy |
+| `draft-close` | draft WORK/FACT przed `close` |
+| `hygiene` | crystallize / work-spam |
+| `ask` | pytanie ad hoc |
+
 Wymaga `ollama serve` + model z `helper_llm_model` (domyślnie `gemma3:4b`).  
-Config: `helper_llm_backend` / `helper_llm_model` w `holon_settings.json`.
+Config: `helper_llm_backend` / `helper_llm_model` w `holon_settings.json`.  
+Szczegóły slotu LLM: [LLM_SLOT.md](LLM_SLOT.md).
 
 ### 1. Start
 

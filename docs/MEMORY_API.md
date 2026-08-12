@@ -57,6 +57,8 @@ python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] 
 python holon_agent_memory.py recall "…" [--project P]
 python holon_agent_memory.py ablation
 python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
+python holon_agent_memory.py assist [--task orient|draft-close|hygiene] [--ask "…"] [--project P]
+python -m holon_helper [--task …] [--project P]
 python holon_agent_memory.py seed | stats | eval | collab-test | llm-slot
 python holon_configure.py show | wizard | doctor | gui | use se-compact
 python holon_agent_memory.py status [--project P]
@@ -68,6 +70,7 @@ python karmin_app.py --status
 | Control Center (człowiek) | [USER_GUIDE.md](USER_GUIDE.md) · `START.cmd` |
 | Konfigurator | [CONFIGURE.md](CONFIGURE.md) |
 | Agent boot | [AGENTS.md](../AGENTS.md) · `handoff.surfaces` |
+| Helper SE (assist) | [LLM_SLOT.md](LLM_SLOT.md) · `holon_helper.py` |
 
 ### `surfaces` w handoff (B12)
 

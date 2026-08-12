@@ -29,12 +29,24 @@ GEMINI_MODEL=gemini-2.0-flash    # opcjonalnie; default w holon_llm
 ## Pomocnik SE agenta (nie chat) — domyślnie **Ollama lokalnie**
 
 Pomaga **Grok/CLI** po bootcie (orientacja, draft close, pytania).  
+Implementacja: **`holon_helper.py`** (moduł) · wejście CLI: `holon_agent_memory.py assist` lub `python -m holon_helper`.  
 U Ciebie: **`gemma3:4b` przez Ollamę** (nie cloud Gemini API).
 
 | Slot | Config | Domyślnie |
 |------|--------|-----------|
 | **Chat** (człowiek) | `llm_backend` / `llm_model` | Ollama `gemma3:4b` |
 | **Helper** (agent) | `helper_llm_backend` / `helper_llm_model` | Ollama `gemma3:4b` |
+
+### Zadania (`--task`)
+
+| Task | Rola |
+|------|------|
+| `orient` (default) | stan sesji, co domknąć, rekomendowane CLI |
+| `draft-close` | szkic WORK/FACT do `close` (agent zatwierdza) |
+| `hygiene` | podpowiedzi crystallize / work-spam / szum |
+| `ask` | wolne pytanie (`--ask "…"`) |
+
+### CLI
 
 ```powershell
 ollama serve
@@ -46,9 +58,16 @@ python holon_agent_memory.py assist --task hygiene --project Holon
 python holon_agent_memory.py assist --task draft-close --project Holon
 python holon_agent_memory.py assist --ask "co crystallize a co close?" --project Holon
 python -m holon_helper --project Holon
+python -m holon_helper --task draft-close --project Cynober_studio
 ```
 
-Cloud Gemini (opcjonalnie): `helper_llm_backend=gemini` + `GEMINI_API_KEY`.
+Wynik: tekst + opcjonalnie `actions[]` (gotowe komendy `close` / `set-work` / `crystallize`).  
+Bez Ollamy / klucza: graceful degrade (ok=false, błąd w `HelperReport`).
+
+Cloud Gemini (opcjonalnie): `helper_llm_backend=gemini` + `GEMINI_API_KEY`  
+(lub override w `holon_settings.json` / `holon_configure.py`).
+
+Kod: [`holon_helper.py`](../holon_helper.py) · workflow: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
 
 ## Gemini jako backend czatu (opcjonalnie)
 
