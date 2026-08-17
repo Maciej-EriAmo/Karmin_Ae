@@ -10,12 +10,15 @@ from pathlib import Path
 from holon_settings import (
     PRESETS,
     apply_preset,
+    data_home,
     doctor,
     load_config,
     load_settings,
     normalize_lang,
     normalize_settings,
     preset_text,
+    relocate_repo_state,
+    repo_root,
     resolve_ui_lang,
     save_settings,
     sanitize_overrides,
@@ -79,6 +82,33 @@ class TestSettings(unittest.TestCase):
         en_label, _ = preset_text("se-compact", "en")
         self.assertIn("kompakt", pl_label.lower())
         self.assertIn("compact", en_label.lower())
+
+    def test_data_home_is_not_repo(self):
+        home = data_home()
+        root = repo_root()
+        self.assertNotEqual(home.resolve(), root.resolve())
+        self.assertFalse(str(home.resolve()).startswith(str(root.resolve()) + "\\"))
+
+    def test_relocate_moves_state_out_of_project(self):
+        import os
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "proj"
+            dest = Path(td) / "data"
+            repo.mkdir()
+            (repo / "holon_memory.json").write_text('{"store":[]}\n', encoding="utf-8")
+            old = os.environ.get("HOLON_DATA_HOME")
+            os.environ["HOLON_DATA_HOME"] = str(dest)
+            try:
+                rep = relocate_repo_state(root=repo)
+                self.assertTrue((dest / "holon_memory.json").is_file())
+                self.assertFalse((repo / "holon_memory.json").is_file())
+                self.assertIn("holon_memory.json", rep["moved"])
+            finally:
+                if old is None:
+                    os.environ.pop("HOLON_DATA_HOME", None)
+                else:
+                    os.environ["HOLON_DATA_HOME"] = old
 
     def test_help_cli_en(self):
         code = configure_main(["--lang", "en", "help"])

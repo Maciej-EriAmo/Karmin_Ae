@@ -129,7 +129,7 @@ python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 | `C:\Users\drwis\KarmazynOs` | runtime / OS / Rust — **nie** fork Holona |
 | `C:\Users\drwis\DBase` | Karmin_DB / Cynober — skarbiec, nie handoff |
 
-`holon_memory.json` = stan umysłu (gitignore). **Nie kasować / nie resetować** bez prośby użytkownika.
+`holon_memory.json` = stan umysłu. Żyje **poza** katalogiem projektu: `%LOCALAPPDATA%\Karmin_Ae` albo `HOLON_DATA_HOME`. W repo zostaje kod. **Nie kasować / nie resetować** bez prośby użytkownika.
 
 ---
 
@@ -150,7 +150,7 @@ python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 - **Konfigurator:** `python holon_configure.py help` · `wizard` · `doctor` · `gui`  
   → `holon_settings.json` (gitignore); język: `--lang en` / `set ui_lang en` / `HOLON_UI_LANG`  
   docs: [docs/CONFIGURE.md](docs/CONFIGURE.md)  
-- Env: `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_LLM_*`, `HOLON_UI_LANG`, `HOLON_KARMIN_PATH`
+- Env: `HOLON_DATA_HOME`, `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_LLM_*`, `HOLON_UI_LANG`, `HOLON_KARMIN_PATH`
 
 ---
 

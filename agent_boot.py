@@ -127,8 +127,14 @@ def main(argv=None) -> int:
 
     # settings: profile / memory_path (CLI --path wygrywa gdy inny niż default)
     try:
-        from holon_settings import load_config, load_settings, resolve_memory_path
+        from holon_settings import (
+            load_config,
+            load_settings,
+            relocate_repo_state,
+            resolve_memory_path,
+        )
 
+        relocate_repo_state(root=ROOT)
         _settings = load_settings()
         mem_path = resolve_memory_path(
             cli_path=args.path if args.path != str(ROOT / "holon_memory.json") else None,

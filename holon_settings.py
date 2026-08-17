@@ -21,6 +21,35 @@ SETTINGS_VERSION = 1
 DEFAULT_SETTINGS_NAME = "holon_settings.json"
 EXAMPLE_SETTINGS_NAME = "holon_settings.example.json"
 
+# Stan (pamięć, settings, linki) — poza drzewem kodu. Inaczej zombie w repo.
+STATE_BASENAMES = (
+    "holon_memory.json",
+    "holon_memory.meta.json",
+    "holon_memory_links.json",
+    "holon_memory_kurz.json",
+    "holon_memory.bak.json",
+    "holon_settings.json",
+)
+STATE_DIRNAMES = ("notes",)
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def data_home() -> Path:
+    """Katalog danych SE — nie katalog projektu.
+
+    HOLON_DATA_HOME > %LOCALAPPDATA%/Karmin_Ae > ~/.local/share/karmin_ae
+    """
+    env = (os.environ.get("HOLON_DATA_HOME") or "").strip()
+    if env:
+        return Path(env).expanduser()
+    local = (os.environ.get("LOCALAPPDATA") or "").strip()
+    if local:
+        return Path(local) / "Karmin_Ae"
+    return Path.home() / ".local" / "share" / "karmin_ae"
+
 # Pola Config dozwolone w overrides (bez obiektów / list złożonych Φ).
 SAFE_OVERRIDE_KEYS = frozenset(
     {
@@ -166,8 +195,79 @@ def preset_text(name: str, lang: str = "pl") -> Tuple[str, str]:
 
 
 def default_settings_path(root: Optional[Path] = None) -> Path:
-    base = Path(root) if root else Path(__file__).resolve().parent
-    return base / DEFAULT_SETTINGS_NAME
+    """Settings: najpierw data_home, potem (legacy) katalog kodu."""
+    home = data_home() / DEFAULT_SETTINGS_NAME
+    if home.is_file():
+        return home
+    base = Path(root) if root else repo_root()
+    legacy = base / DEFAULT_SETTINGS_NAME
+    if legacy.is_file():
+        return legacy
+    return home
+
+
+def relocate_repo_state(*, root: Optional[Path] = None) -> Dict[str, Any]:
+    """Przenieś pliki stanu z repo do data_home. Idempotentne.
+
+    Dest wygrywa. Po udanym kopiowaniu kasujemy kopię w projekcie
+    (to był bałagan / zombie).
+    """
+    import shutil
+
+    repo = Path(root) if root else repo_root()
+    home = data_home()
+    report: Dict[str, Any] = {
+        "home": str(home),
+        "repo": str(repo),
+        "moved": [],
+        "kept_dest": [],
+        "skipped": [],
+    }
+    try:
+        if home.resolve() == repo.resolve():
+            report["skipped"].append("home==repo")
+            return report
+    except OSError:
+        pass
+    home.mkdir(parents=True, exist_ok=True)
+    for name in STATE_BASENAMES:
+        src, dst = repo / name, home / name
+        if not src.is_file():
+            continue
+        if not dst.is_file():
+            shutil.copy2(src, dst)
+            report["moved"].append(name)
+        else:
+            report["kept_dest"].append(name)
+        try:
+            src.unlink()
+        except OSError:
+            report["skipped"].append(f"unlink {name}")
+    for name in STATE_DIRNAMES:
+        src, dst = repo / name, home / name
+        if not src.is_dir():
+            continue
+        if not dst.exists():
+            import shutil as _sh
+
+            _sh.copytree(src, dst)
+            report["moved"].append(name + "/")
+            _sh.rmtree(src, ignore_errors=True)
+        else:
+            report["kept_dest"].append(name + "/")
+    marker = repo / ".holon_data_home"
+    try:
+        marker.write_text(str(home) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    readme = home / "README.txt"
+    if not readme.is_file():
+        readme.write_text(
+            "Karmin_Ae data home — stan umysłu i ustawienia.\n"
+            "Kod jest w katalogu projektu; tutaj tylko dane.\n",
+            encoding="utf-8",
+        )
+    return report
 
 
 def default_blank() -> Dict[str, Any]:
@@ -441,9 +541,16 @@ def resolve_memory_path(
     s = settings if settings is not None else load_settings(settings_path)
     mp = str(s.get("memory_path") or "holon_memory.json").strip()
     p = Path(mp)
-    if not p.is_absolute() and root is not None:
-        p = Path(root) / p
-    return str(p)
+    if p.is_absolute():
+        return str(p)
+    home_p = data_home() / p.name
+    base = Path(root) if root is not None else repo_root()
+    legacy = base / p
+    if home_p.is_file():
+        return str(home_p)
+    if legacy.is_file():
+        return str(legacy)
+    return str(home_p)
 
 
 def resolve_default_project(

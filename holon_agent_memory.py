@@ -111,8 +111,9 @@ class AgentMemory:
         # ścieżka z settings, gdy caller zostawił default
         if use_settings and memory_path in ("", "holon_memory.json"):
             try:
-                from holon_settings import resolve_memory_path
+                from holon_settings import relocate_repo_state, resolve_memory_path
 
+                relocate_repo_state()
                 memory_path = resolve_memory_path(cli_path=None)
             except Exception:
                 memory_path = memory_path or "holon_memory.json"

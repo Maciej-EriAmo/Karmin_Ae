@@ -12,7 +12,19 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
 
-DEFAULT_NOTES_DIR = "notes"
+def _default_notes_dir() -> str:
+    try:
+        from holon_settings import data_home, relocate_repo_state
+
+        relocate_repo_state()
+        p = data_home() / "notes"
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p)
+    except Exception:
+        return "notes"
+
+
+DEFAULT_NOTES_DIR = _default_notes_dir()
 DATE_FORMAT       = "%Y-%m-%d"
 TIME_FORMAT       = "%H:%M"
 DATETIME_FORMAT   = "%Y-%m-%d %H:%M"

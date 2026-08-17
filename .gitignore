@@ -3,6 +3,9 @@
 # Kod źródłowy (*.py, docs, tests) — OK w repo.
 # =============================================================================
 
+# wskaźnik: dane SE żyją poza repo (LOCALAPPDATA / HOLON_DATA_HOME)
+.holon_data_home
+
 # --- Pamięć trwała Holona (Φ, store, AII, embeddingi) ---
 holon_memory.json
 holon_memory.*.json
