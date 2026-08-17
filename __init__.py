@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Holon v5.12 — Cognitive Architecture Layer for LLMs + SE agent surface (Plan B)
+Karmin_Ae / Holon v5.13 — Cognitive Architecture Layer for LLMs + SE agent surface (Plan B)
 
 Holon provides:
 - Persistent holographic memory (HRR encoding)
@@ -16,7 +16,7 @@ Usage (pamięć SE / Grok):
     mem = open_memory()
 
 Usage (chat EriAmo):
-    from holon import Session
+    from holon_session import Session
     session = Session(memory_path="holon_memory.json")
     session.start()
     response = session.chat("Hello!")

@@ -63,7 +63,7 @@ class Session:
         res = self.holomem.start_session()
         s = self.holomem.stats()
         aii = s["aii"]
-        print(f"\n[holonP v5.12] tur={s['turns']} store={s['store']} "
+        print(f"\n[Karmin_Ae v5.13] tur={s['turns']} store={s['store']} "
               f"delta={s['delta_hours']}h "
               f"aii={aii['emotion']}(focus:{aii['focus']})")
         self._watcher = ReminderWatcher(self.holomem)

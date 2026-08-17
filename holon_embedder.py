@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
-"""holon/embedder.py — Embedder + kodowanie czasowe"""
+"""holon/embedder.py — Embedder + kodowanie czasowe
 
-import os
+Backend: pakiet ``kurz`` jeśli jest. Inaczej signed feature-hash
+(ten sam tekst → ten sam wektor). Nie ``randn``.
+"""
+
+import hashlib
 import math
+import os
+import re
 import time
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 # ── Epoch ──────────────────────────────────────────────────────────────────
 _HOLON_EPOCH: float = float(os.environ.get("HOLON_EPOCH", str(time.time())))
@@ -26,31 +33,55 @@ def time_embed(timestamp: float, time_dim: int = 8) -> np.ndarray:
     return vec
 
 
-# ── KuRz fallback ──────────────────────────────────────────────────────────
+# ── KuRz / hash fallback ──────────────────────────────────────────────────
+KURZ_IS_FALLBACK = False
 try:
     from kurz import KuRz as _KuRz
 except ImportError:
+    KURZ_IS_FALLBACK = True
+
+    _TOKEN_RE = re.compile(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ0-9_./-]{2,}")
+
     class _KuRz:
+        """Signed feature-hash (256D). Deterministyczny; nie jest 15D KuRzem z archiwum."""
+
         def __init__(self, dim=256, dict_path=None):
-            self.dim        = dim
-            self.dict_path  = dict_path
+            self.dim = int(dim)
+            self.dict_path = dict_path
             self.vocab_size = 10000
-            self.calls      = 0
+            self.calls = 0
 
         def encode(self, text):
             self.calls += 1
-            return np.random.randn(self.dim).astype(np.float32)
+            raw = (text or "").lower()
+            vec = np.zeros(self.dim, dtype=np.float32)
+            feats = _TOKEN_RE.findall(raw)
+            compact = re.sub(r"\s+", " ", raw).strip()
+            for n in (3, 4):
+                if len(compact) >= n:
+                    feats.extend(
+                        compact[i : i + n] for i in range(len(compact) - n + 1)
+                    )
+            if not feats:
+                feats = ["_empty"]
+            dim = self.dim
+            for f in feats:
+                digest = hashlib.blake2b(
+                    f.encode("utf-8"), digest_size=8
+                ).digest()
+                idx = int.from_bytes(digest[:4], "little") % dim
+                sign = 1.0 if (digest[4] & 1) else -1.0
+                vec[idx] += sign
+            nrm = float(np.linalg.norm(vec)) + 1e-8
+            return (vec / nrm).astype(np.float32)
 
         def save_dict(self):
-            pass
+            return None
 
 
 # ── Embedder ───────────────────────────────────────────────────────────────
 class Embedder:
-    """
-    Warstwa embeddingów dla Holona.
-    Backend: KuRz (offline, hash-based) lub dowolny model przez podklasę.
-    """
+    """KuRz jeśli jest; inaczej signed feature-hash. Ten sam tekst → ten sam content-wektor."""
 
     def __init__(self, dim: int = 256,
                  dict_path: Optional[str] = None,
@@ -62,23 +93,28 @@ class Embedder:
         self._cache: dict = {}
         self._cache_size  = cache_size
         self._cache_hits  = 0
+        self.backend = "kurz" if not KURZ_IS_FALLBACK else "hash"
+
+    def _content_vec(self, text: str) -> np.ndarray:
+        key = (text or "")[:200]
+        hit = self._cache.get(key)
+        if hit is not None:
+            self._cache_hits += 1
+            return hit
+        vec = self._kurz.encode(text or "")
+        self._cache[key] = vec
+        if len(self._cache) > self._cache_size:
+            del self._cache[next(iter(self._cache))]
+        return vec
 
     def encode(self, text: str, timestamp: float = None) -> np.ndarray:
-        key = (text or "")[:200]
+        content = self._content_vec(text)
         if timestamp is None:
-            if key in self._cache:
-                self._cache_hits += 1
-                return self._cache[key]
-            vec = self._kurz.encode(text or "")
-            self._cache[key] = vec
-            if len(self._cache) > self._cache_size:
-                del self._cache[next(iter(self._cache))]
-            return vec
-        content = self._kurz.encode(text or "")
-        t_vec   = time_embed(timestamp, self.time_dim)
-        full    = np.concatenate([content * 0.7, t_vec * 0.3])
-        n       = np.linalg.norm(full)
-        return full / (n + 1e-8)
+            return content
+        t_vec = time_embed(timestamp, self.time_dim)
+        full = np.concatenate([content * 0.7, t_vec * 0.3])
+        n = float(np.linalg.norm(full)) + 1e-8
+        return (full / n).astype(np.float32)
 
     def encode_timed(self, text: str) -> np.ndarray:
         return self.encode(text, timestamp=time.time())
@@ -90,3 +126,12 @@ class Embedder:
     @property
     def vocab_size(self) -> int:
         return self._kurz.vocab_size
+
+
+def embed_for_item(holomem, text: str) -> list:
+    """Wektor do Item w store — prawdziwy encode, nie zera."""
+    enc = getattr(holomem, "embedder", None)
+    if enc is not None:
+        return enc.encode(text or "", timestamp=time.time()).tolist()
+    dim = int(getattr(getattr(holomem, "cfg", None), "total_dim", 264) or 264)
+    return [0.0] * dim

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """holon_agent_memory.py — cienki adapter pamięci Holona pod agenta kodowego (Grok/CLI).
 
-Holon **v5.13** — Plan B + B10 handoff projection (hybrid since, anchors/chronicle,
-close, recommended_actions, suggested_mneme, last-project).
+Holon **v5.13** — Plan B + B10 handoff + B13 komory (enter/leave per projekt).
 
 Use-case: Holon-as-memory (ciągłość SE), NIE kanon czatu EriAmo.
 Profil: zawsze ``Config.agent()`` (jawny; chat = ``Config.chat()`` w Session).
@@ -13,6 +12,9 @@ Kontrakt: ``MemoryAPI`` (remember / recall / digest / save) — patrz holon_memo
   python holon_agent_memory.py remember --fact "..."
   python holon_agent_memory.py remember --work "..."
   python holon_agent_memory.py close --work "..." --fact "..." --project P
+  python holon_agent_memory.py enter --project P
+  python holon_agent_memory.py leave --work-text "..." --fact-text "..." --project P
+  python holon_agent_memory.py chambers
   python holon_agent_memory.py recall "query"
   python holon_agent_memory.py seed
   python holon_agent_memory.py stats
@@ -302,6 +304,11 @@ class AgentMemory:
         dh = max(0.0, (time.time() - float(created_at)) / 3600.0)
         return TimeDecay.format_pastness(dh)
 
+    @staticmethod
+    def _project_tag(content: str) -> str:
+        m = re.match(r"\[([^\]]+)\]", (content or "").strip())
+        return (m.group(1).strip() if m else "")
+
     def _match_project(self, content: str, project: str) -> bool:
         if not project:
             return True
@@ -495,50 +502,63 @@ class AgentMemory:
             w.is_work = False
             w.is_fact = True  # historia projektu zostaje durable
         if proj:
+            prev = self.read_hammer()
+            if prev and prev.lower() != proj.lower():
+                self.snapshot_chamber(prev)
             self.touch_last_project(proj)
         return item
 
     # ── B10: last-project + close sesji ───────────────────────────────────
 
     def meta_path(self) -> Path:
-        """``holon_memory.meta.json`` obok store (last_project, nie w gicie)."""
+        """``holon_memory.meta.json`` obok store (last_project + komory, nie w gicie)."""
         p = Path(self.memory_path)
         return p.with_name(p.stem + ".meta.json")
+
+    def _read_meta(self) -> dict:
+        path = self.meta_path()
+        try:
+            if path.is_file():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+        return {}
+
+    def _write_meta(self, data: dict, *, replace: bool = False) -> None:
+        path = self.meta_path()
+        try:
+            out = dict(data) if replace else {**self._read_meta(), **data}
+            out["updated_at"] = time.time()
+            path.write_text(
+                json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
 
     def touch_last_project(self, project: str) -> None:
         """Zapisz ostatni projekt (dla boot bez --project)."""
         proj = (project or "").strip()
         if not proj:
             return
-        path = self.meta_path()
-        data = {"last_project": proj, "updated_at": time.time()}
-        try:
-            if path.is_file():
-                old = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(old, dict):
-                    old.update(data)
-                    data = old
-            path.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except Exception:
-            pass
+        self._write_meta({"last_project": proj})
+
+    def read_hammer(self) -> str:
+        """Która komora jest pod kurkiem (tylko meta, nie env)."""
+        return str(self._read_meta().get("last_project") or "").strip()
 
     def read_last_project(self) -> str:
-        """Odczyt last_project: env → meta → ``holon_settings.json``."""
+        """Domyślny projekt bootu: kurek (meta) → env → ``holon_settings.json``.
+
+        Jak jest zapisana komora, env nie nadpisuje obrotu.
+        """
+        lp = self.read_hammer()
+        if lp:
+            return lp
         env = (os.environ.get("HOLON_DEFAULT_PROJECT") or "").strip()
         if env:
             return env
-        try:
-            path = self.meta_path()
-            if path.is_file():
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    lp = str(data.get("last_project") or "").strip()
-                    if lp:
-                        return lp
-        except Exception:
-            pass
         try:
             from holon_settings import load_settings
 
@@ -548,6 +568,209 @@ class AgentMemory:
         except Exception:
             pass
         return ""
+
+    def read_chamber(self, project: str) -> dict:
+        """Ostatni zapisany stan komory projektu (work + podstawowe facts)."""
+        proj = (project or "").strip()
+        if not proj:
+            return {}
+        ch = (self._read_meta().get("chambers") or {}).get(proj)
+        return dict(ch) if isinstance(ch, dict) else {}
+
+    def snapshot_chamber(self, project: str, *, max_facts: int = 3) -> dict:
+        """Zapisz komorę z aktualnego store: 1 work + kotwice. Nie rusza innych komór."""
+        proj = (project or "").strip()
+        if not proj:
+            return {}
+        if not self._started:
+            self.start()
+        works = [
+            i for i in self.hm.store
+            if i.is_work and self._match_project(i.content, proj)
+        ]
+        works.sort(key=lambda x: -(x.created_at or 0))
+        facts = [
+            i for i in self.hm.store
+            if i.is_fact and not i.is_work
+            and self._match_project(i.content, proj)
+        ]
+        facts.sort(key=self._fact_anchor_score, reverse=True)
+        facts = self._handoff_dedupe(facts, max_facts)
+        w = works[0] if works else None
+        old = self.read_chamber(proj)
+        snap = {
+            "project": proj,
+            "work": ((w.content if w else "") or old.get("work") or "")[:280],
+            "work_id": ((w.id if w else "") or old.get("work_id") or ""),
+            "facts": [(f.content or "")[:200] for f in facts[:max_facts]]
+            or list(old.get("facts") or [])[:max_facts],
+            "updated_at": time.time(),
+        }
+        meta = self._read_meta()
+        chambers = dict(meta.get("chambers") or {})
+        chambers[proj] = snap
+        meta["chambers"] = chambers
+        self._write_meta(meta, replace=True)
+        return snap
+
+    def seed_live_work_chambers(self) -> List[str]:
+        """Upewnij się, że każda żywa komora (is_work z [Tag]) ma snapshot."""
+        if not self._started:
+            self.start()
+        tags = []
+        seen = set()
+        for i in self.hm.store:
+            if not i.is_work:
+                continue
+            t = self._project_tag(i.content)
+            if not t or t.lower() in seen:
+                continue
+            seen.add(t.lower())
+            tags.append(t)
+        for t in tags:
+            self.snapshot_chamber(t)
+        return tags
+
+    def _restore_chamber_work(self, project: str, snap: Optional[dict] = None) -> bool:
+        """Jeśli komora nie ma live work, przywróć zapisany nabój (ten sam item)."""
+        proj = (project or "").strip()
+        if not proj:
+            return False
+        live = [
+            i for i in self.hm.store
+            if i.is_work and self._match_project(i.content, proj)
+        ]
+        if live:
+            return False
+        snap = snap or self.read_chamber(proj)
+        wid = str((snap or {}).get("work_id") or "").strip()
+        wtxt = str((snap or {}).get("work") or "").strip()
+        target = None
+        if wid:
+            for i in self.hm.store:
+                if i.id == wid:
+                    target = i
+                    break
+        if target is None and wtxt:
+            head = wtxt[:80]
+            for i in self.hm.store:
+                c = i.content or ""
+                if c.startswith(head) or head in c:
+                    target = i
+                    break
+        if target is None:
+            return False
+        target.is_work = True
+        target.is_fact = True
+        return True
+
+    def list_chambers(self) -> dict:
+        """Bęben: komory z meta + żywe work (current = last_project)."""
+        if not self._started:
+            self.start()
+        self.seed_live_work_chambers()
+        meta = self._read_meta()
+        chambers = meta.get("chambers") or {}
+        last = str(meta.get("last_project") or self.read_hammer() or "").strip()
+        out = []
+        for name, snap in chambers.items():
+            if not isinstance(snap, dict):
+                continue
+            live = any(
+                i.is_work and self._match_project(i.content, name)
+                for i in self.hm.store
+            )
+            out.append({
+                "project": name,
+                "work": (snap.get("work") or "")[:160],
+                "facts_n": len(snap.get("facts") or []),
+                "live": live,
+                "current": bool(last) and name.lower() == last.lower(),
+                "updated_at": snap.get("updated_at"),
+            })
+        out.sort(
+            key=lambda x: (
+                0 if x["current"] else 1,
+                0 if x["live"] else 1,
+                x["project"].lower(),
+            )
+        )
+        return {"ok": True, "last_project": last or None, "chambers": out}
+
+    def enter(
+        self,
+        project: str,
+        *,
+        restore_work: bool = True,
+        save_previous: bool = True,
+    ) -> dict:
+        """Wejdź do komory: zapisz poprzednią, załaduj podstawy, 1 work w tej komorze.
+
+        Innych projektów nie demotuje. Puste ``project`` = widok całego bębna
+        (higiena 1 work *na komorę*, bez zmiany last_project).
+        """
+        if not self._started:
+            self.start()
+        proj = (project or "").strip()
+        prev = self.read_hammer()
+        switched = bool(proj and prev and prev.lower() != proj.lower())
+        self.seed_live_work_chambers()
+        if save_previous and switched:
+            self.snapshot_chamber(prev)
+        snap: dict = {}
+        restored = False
+        if proj:
+            snap = self.snapshot_chamber(proj)
+            if restore_work:
+                restored = self._restore_chamber_work(proj, snap)
+                if restored:
+                    snap = self.snapshot_chamber(proj)
+            self.touch_last_project(proj)
+            dem = self.enforce_max_work(project=proj, max_active=1, save=False)
+        else:
+            self.seed_live_work_chambers()
+            dem = self.enforce_max_work(project="", max_active=1, save=False)
+        return {
+            "ok": True,
+            "op": "enter",
+            "project": proj or None,
+            "previous": prev or None,
+            "switched": switched,
+            "chamber": snap,
+            "restored_work": restored,
+            "demoted": int(dem.get("demoted") or 0),
+        }
+
+    def leave(
+        self,
+        *,
+        work: str = "",
+        fact: str = "",
+        project: str = "",
+        max_active: Optional[int] = None,
+        save: bool = True,
+    ) -> dict:
+        """Wyjdź z komory: zapisz stan. Z work/fact = ``close``; bez = sam snapshot."""
+        if not self._started:
+            self.start()
+        proj = (project or "").strip() or self.read_hammer() or self.read_last_project()
+        w = (work or "").strip()
+        f = (fact or "").strip()
+        if w or f:
+            rep = self.close(
+                work=w, fact=f, project=proj, max_active=max_active, save=save
+            )
+            rep["op"] = "leave"
+            return rep
+        snap = self.snapshot_chamber(proj) if proj else {}
+        return {
+            "ok": True,
+            "op": "leave",
+            "project": proj or None,
+            "chamber": snap,
+            "saved_only": True,
+            "saved": False,
+        }
 
     def close(
         self,
@@ -589,6 +812,8 @@ class AgentMemory:
             report["fact"] = (item_f.content or "")[:200]
             if proj:
                 self.touch_last_project(proj)
+        if proj:
+            report["chamber"] = self.snapshot_chamber(proj)
         if save:
             report["saved"] = bool(self.save())
         return report
@@ -941,27 +1166,42 @@ class AgentMemory:
         *,
         save: bool = False,
     ) -> dict:
-        """Zostaw co najwyżej N aktywnych work (reszta → fact). Domyślnie 1."""
+        """Zostaw co najwyżej N aktywnych work na komorę (reszta → fact).
+
+        Z ``project``: tylko ta komora. Bez projektu: 1 work *w każdej* komorze
+        (nie ścina bębna do jednego work globalnie).
+        """
         if max_active is None:
             max_active = int(getattr(self.hm.cfg, "set_work_max_active", 1))
         max_active = max(1, int(max_active))
         proj = (project or "").strip()
         works = [i for i in self.hm.store if i.is_work]
         if proj:
-            works = [w for w in works if self._match_project(w.content, proj)]
-        works.sort(key=lambda x: -(x.created_at or 0))
+            groups = {
+                proj: [w for w in works if self._match_project(w.content, proj)]
+            }
+        else:
+            groups = {}
+            for w in works:
+                tag = self._project_tag(w.content) or "_untagged"
+                groups.setdefault(tag, []).append(w)
         demoted = []
-        for w in works[max_active:]:
-            w.is_work = False
-            w.is_fact = True
-            demoted.append((w.content or "")[:120])
+        kept = 0
+        for _tag, ws in groups.items():
+            ws.sort(key=lambda x: -(x.created_at or 0))
+            kept += min(len(ws), max_active)
+            for w in ws[max_active:]:
+                w.is_work = False
+                w.is_fact = True
+                demoted.append((w.content or "")[:120])
         if save and demoted:
             self.save()
         return {
             "ok": True,
             "max_active": max_active,
             "project": proj or None,
-            "kept": len(works[:max_active]),
+            "kept": kept,
+            "chambers": len(groups),
             "demoted": len(demoted),
             "demoted_samples": demoted[:5],
         }
@@ -1271,12 +1511,11 @@ class AgentMemory:
                 work_items_for_mneme, project=project or ""
             ),
             "agent_protocol": [
-                "1. Start: agent_boot.py; re-boot: --since 24h (hybrid).",
-                "2. Trwale: remember --fact \"[Projekt] ...\".",
-                "3. Watek: set-work (max 1) / close na koniec.",
-                "4. Store szumi: crystallize [--project P].",
-                "5. Nie resetuj holon_memory.json bez prosby.",
-                "6. Holon=pamiec; runtime=KarmazynOs.",
+                "1. Wejście: agent_boot.py --project P (ładuje komorę).",
+                "2. Praca: remember --fact / set-work (1 work w tej komorze).",
+                "3. Wyjście: close/leave — zapis stanu komory.",
+                "4. Obrót: enter Q (poprzednia komora zostaje) albo koniec.",
+                "5. Store szumi: crystallize [--project P]. Nie resetuj store.",
             ],
             "paths": {
                 "memory": self.memory_path,
@@ -1285,10 +1524,37 @@ class AgentMemory:
                 "api": "holon_memory_api.py",
             },
         }
+        # B13: komora bieżącego projektu + lista bębna (inne work nie giną)
+        meta_ch = self._read_meta().get("chambers") or {}
+        cur_ch = meta_ch.get(project) if project else None
+        if isinstance(cur_ch, dict):
+            out["chamber"] = {
+                "project": cur_ch.get("project") or project,
+                "work": (cur_ch.get("work") or "")[:280],
+                "facts": list(cur_ch.get("facts") or [])[:3],
+            }
+        else:
+            out["chamber"] = None
+        ch_names = []
+        if isinstance(meta_ch, dict):
+            for name in meta_ch.keys():
+                ch_names.append(str(name))
+        if not ch_names:
+            seen_n = set()
+            for i in self.hm.store:
+                if not i.is_work:
+                    continue
+                t = self._project_tag(i.content)
+                if t and t.lower() not in seen_n:
+                    seen_n.add(t.lower())
+                    ch_names.append(t)
+        out["chambers"] = ch_names
+
         if compact:
             # mniej tokenow: krotki protocol; bez dublowania anchors=key_facts
             out["agent_protocol"] = [
-                "boot -> 1 work + fact -> close; crystallize gdy szumi; nie resetuj store.",
+                "enter P -> praca -> leave/close -> enter Q | koniec; "
+                "1 work na komorę; nie resetuj store.",
             ]
             out["chronicle"] = []
             # full compact: anchors juz = key_facts — nie dubluj
@@ -1402,6 +1668,16 @@ class AgentMemory:
             )
             lines.append("")
 
+        chambers = h.get("chambers") or []
+        if chambers:
+            lines.append("## Chambers")
+            lines.append("")
+            cur = (h.get("chamber") or {}).get("project") if isinstance(h.get("chamber"), dict) else ""
+            for name in chambers:
+                mark = " ←" if cur and str(name).lower() == str(cur).lower() else ""
+                lines.append(f"- `{name}`{mark}")
+            lines.append("")
+
         work = h.get("active_work") or []
         lines.append("## Active work")
         lines.append("")
@@ -1499,7 +1775,7 @@ class AgentMemory:
             lines.append("")
 
         lines.append("---")
-        lines.append("_Źródło: `holon-agent-handoff-v1` → B7 markdown (+ B10)_")
+        lines.append("_Źródło: `holon-agent-handoff-v1` → B7 markdown (+ B10/B13)_")
         lines.append("")
         return "\n".join(lines)
 
@@ -1714,6 +1990,7 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "status", "collab-test", "eval",
         "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "close",
+        "enter", "leave", "chambers",
         "boot", "crystallize", "watch-remember",
         "assist", "helper",  # Gemini/SE helper for agent (not chat)
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
@@ -1922,6 +2199,50 @@ def _main(argv: Optional[List[str]] = None) -> int:
         else:
             print(f"set-work id={item.id[:8]}… (bez zapisu)")
         return 0
+
+    if args.cmd == "chambers":
+        print(json.dumps(am.list_chambers(), indent=2, ensure_ascii=False, default=str))
+        return 0
+
+    if args.cmd == "enter":
+        proj = (args.project or "").strip()
+        if not proj:
+            print('Użycie: enter --project P', file=sys.stderr)
+            return 2
+        from agent_boot import main as boot_main
+        boot_argv = ["--project", proj, "--path", args.path]
+        if args.since:
+            boot_argv.extend(["--since", args.since])
+        if args.strict_delta:
+            boot_argv.append("--strict-delta")
+        if args.compact:
+            boot_argv.append("--compact")
+        if args.no_digest:
+            boot_argv.append("--no-banner")
+        return int(boot_main(boot_argv) or 0)
+
+    if args.cmd == "leave":
+        w = (args.work_text or "").strip() or (
+            args.text.strip() if not args.as_fact else ""
+        )
+        f = (args.fact_text or "").strip()
+        if args.as_fact and args.text.strip() and not f:
+            f = args.text.strip()
+        if args.as_work and args.text.strip() and not w:
+            w = args.text.strip()
+        try:
+            rep = am.leave(
+                work=w,
+                fact=f,
+                project=args.project,
+                max_active=args.max_active,
+                save=not args.no_save,
+            )
+        except ValueError as e:
+            print(f"leave: {e}", file=sys.stderr)
+            return 2
+        print(json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
 
     if args.cmd == "close":
         # B10: close --work-text "…" --fact-text "…" --project P

@@ -9,7 +9,7 @@ docs/
   CONFIGURE.md           ← Control Center + konfigurator + język
   AGENT_WORKFLOW.md      ← jak AGENT ma pracować z pamięcią
   MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
-  B10_HANDOFF.md         ← B10 projection (hybrid since, anchors, close)
+  B10_HANDOFF.md         ← B10 projection + B13 komory (enter/leave)
   ARCHITECTURE.md        ← moduły, przepływ, profile
   AII_PROTO_EMOTIONS.md  ← proto-emocje AII (kod + grupa docelowa)
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)

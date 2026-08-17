@@ -104,6 +104,23 @@ Preset `se` = te limity; `se-compact` = facts 3 (jeszcze ciaśniej); `--rich` w 
 - `close_ok` / `close_max_active_one` / `last_project_meta`
 - `remember_idempotent_same_id`
 
+## B13 — komory (enter / leave)
+
+Jedna żywa komora na projekt. Wejście ładuje podstawy, wyjście zapisuje stan, obrót nie kasuje innych komór.
+
+```bash
+python holon_agent_memory.py enter --project Holon
+# praca…
+python holon_agent_memory.py leave --work-text "…" --fact-text "…" --project Holon
+python holon_agent_memory.py enter --project lore-game
+python holon_agent_memory.py chambers
+```
+
+- `enter P` — snapshot poprzedniej komory (`last_project`), restore work jeśli został zdemotowany, `last_project=P`, handoff jak boot.
+- `leave` / `close` — atomowo work+fact **i** zapis komory w `holon_memory.meta.json` (`chambers`).
+- `enforce_max_work` bez projektu: 1 work **na komorę**, nie 1 work na cały store.
+- Handoff: `chamber` (work + ≤3 facts) + `chambers` (nazwy bębna).
+
 ## Czego B10 **nie** robi
 
 - Nie zmienia silnika HRR/Φ.

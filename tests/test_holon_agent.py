@@ -10,6 +10,8 @@ import time
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -159,6 +161,125 @@ class TestAgentDedupe(unittest.TestCase):
             n = sum(1 for i in am.hm.store
                     if "dedupe ABC" in i.content)
             self.assertEqual(n, 1)
+
+
+class TestHashEmbedder(unittest.TestCase):
+    def test_fallback_is_deterministic_not_noise(self):
+        from holon_embedder import Embedder, KURZ_IS_FALLBACK
+
+        e1 = Embedder(dim=64, time_dim=4)
+        e2 = Embedder(dim=64, time_dim=4)
+        a = e1._kurz.encode("slab freelist kentry")
+        b = e2._kurz.encode("slab freelist kentry")
+        c = e1._kurz.encode("przepis na bigos z kapusta")
+        near = e1._kurz.encode("slab freelist")
+
+        def cos(x, y):
+            x = np.asarray(x, dtype=np.float32)
+            y = np.asarray(y, dtype=np.float32)
+            return float(np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y) + 1e-9))
+
+        self.assertGreater(cos(a, b), 0.999)
+        self.assertGreater(cos(a, near), cos(a, c))
+        # timestamp nie psuje content-wektora (cache + hash)
+        t0 = 1_700_000_000.0
+        u = e1.encode("slab freelist kentry", timestamp=t0)
+        v = e1.encode("slab freelist kentry", timestamp=t0)
+        self.assertGreater(cos(u, v), 0.999)
+        if KURZ_IS_FALLBACK:
+            self.assertEqual(e1.backend, "hash")
+
+
+class TestProjectChambers(unittest.TestCase):
+    def test_enforce_empty_keeps_one_work_per_project(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            am = AgentMemory.open(
+                memory_path=path, profile="agent", use_settings=False
+            )
+            am.set_work("A work", project="Alpha")
+            am.set_work("B work", project="Beta")
+            rep = am.enforce_max_work(project="", max_active=1)
+            works = [i for i in am.hm.store if i.is_work]
+            self.assertEqual(len(works), 2)
+            self.assertEqual(rep["chambers"], 2)
+            self.assertEqual(rep["demoted"], 0)
+
+    def test_enter_snapshots_previous_and_keeps_other_chamber(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            am = AgentMemory.open(
+                memory_path=path, profile="agent", use_settings=False
+            )
+            am.set_work("A thread", project="Alpha")
+            am.remember("[Alpha] fact A durable", kind="fact")
+            am.enter("Alpha")
+            rep = am.enter("Beta")
+            self.assertTrue(rep["switched"])
+            self.assertEqual(rep["previous"], "Alpha")
+            am.set_work("B thread", project="Beta")
+            am.remember("[Beta] fact B durable", kind="fact")
+            ch = am.read_chamber("Alpha")
+            self.assertIn("A thread", ch.get("work") or "")
+            self.assertEqual(sum(1 for i in am.hm.store if i.is_work), 2)
+            h = am.handoff(project="Beta", compact=True, include_digest=False)
+            self.assertIn("Alpha", h.get("chambers") or [])
+            self.assertIn("Beta", h.get("chambers") or [])
+
+    def test_restore_work_from_chamber_if_demoted(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            am = AgentMemory.open(
+                memory_path=path, profile="agent", use_settings=False
+            )
+            am.set_work("Only Alpha", project="Alpha")
+            am.enter("Alpha")
+            for i in am.hm.store:
+                if i.is_work:
+                    i.is_work = False
+                    i.is_fact = True
+            self.assertEqual(sum(1 for i in am.hm.store if i.is_work), 0)
+            rep = am.enter("Alpha")
+            self.assertTrue(rep["restored_work"])
+            self.assertEqual(
+                sum(
+                    1
+                    for i in am.hm.store
+                    if i.is_work and am._match_project(i.content, "Alpha")
+                ),
+                1,
+            )
+
+    def test_close_writes_chamber(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            am = AgentMemory.open(
+                memory_path=path, profile="agent", use_settings=False
+            )
+            am.close(work="next X", fact="did Y", project="Zed")
+            ch = am.read_chamber("Zed")
+            self.assertIn("next X", ch.get("work") or "")
+            self.assertTrue(any("did Y" in f for f in (ch.get("facts") or [])))
+            self.assertEqual(am.read_last_project(), "Zed")
+
+
+class TestHolonItemInject(unittest.TestCase):
+    def test_inject_note_uses_real_item(self):
+        from notes_manager import NotesManager, NOTE_PREFIX
+
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            notes_dir = str(Path(td) / "notes")
+            am = AgentMemory.open(
+                memory_path=path, profile="agent", use_settings=False
+            )
+            nm = NotesManager(notes_dir=notes_dir)
+            note = nm.create(title="Test nota", content="tresc notatki hash")
+            nm.inject_note(am.hm, note)
+            found = [i for i in am.hm.store if NOTE_PREFIX in (i.content or "")]
+            self.assertEqual(len(found), 1)
+            self.assertTrue(hasattr(found[0], "emb_np"))
+            self.assertGreater(float(np.linalg.norm(found[0].emb_np())), 0.0)
 
 
 if __name__ == "__main__":

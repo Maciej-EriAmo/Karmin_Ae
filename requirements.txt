@@ -1,4 +1,4 @@
-# Holon v5.12 - Dependencies
+# Karmin_Ae / Holon v5.13 - Dependencies
 # pip install -r requirements.txt
 
 # Core
@@ -10,6 +10,6 @@ beautifulsoup4>=4.9.0    # WebExtractor
 python-dateutil>=2.8.0   # Session reminder parser
 
 # Optional - KuRz embedder
-# kurz>=1.0.0            # If not installed, uses built-in hash-based fallback
+# kurz>=1.0.0            # bez pakietu: signed feature-hash (deterministyczny, nie randn)
 
 # HolonFS / HSS research → archiwum/ (nie w torze produktu)

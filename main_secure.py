@@ -39,7 +39,7 @@ except ImportError:
     HAS_TASKS = False
 
 try:
-    from knowledge_store import KnowledgeStore, inject_knowledge
+    from knowledge_store import KnowledgeStore, format_knowledge_for_prompt
     HAS_KNOWLEDGE = True
 except ImportError:
     HAS_KNOWLEDGE = False
@@ -47,7 +47,7 @@ except ImportError:
 
 def main():
     print("=" * 60)
-    print("  holonP v5.12 SECURE — EriAmo / HolonOS")
+    print("  Karmin_Ae v5.13 SECURE — EriAmo")
     print("=" * 60)
     
     # Inicjalizacja
@@ -127,20 +127,19 @@ def main():
                     print(f"\n{task_response}")
                     continue
             
-            # Inject wiedzy jeśli dostępna
+            extra = ""
             if knowledge and len(user) > 20:
-                # Sprawdź czy pytanie może wymagać wiedzy zewnętrznej
-                knowledge_keywords = ["co to jest", "wyjaśnij", "jak działa", 
+                knowledge_keywords = ["co to jest", "wyjaśnij", "jak działa",
                                       "what is", "explain", "how does"]
                 if any(kw in user.lower() for kw in knowledge_keywords):
                     results = knowledge.recall(user, top_k=1)
-                    if results and results[0]['score'] > 0.3:
-                        # Inject do kontekstu (bez modyfikacji store)
-                        print(f"  [Knowledge] Znaleziono: {results[0]['filename']}")
-            
-            # Chat z LLM
+                    if results and results[0].get("score", 0) > 0.3:
+                        extra = format_knowledge_for_prompt(results[0])
+                        if extra:
+                            print(f"  [Knowledge] wstrzyknięto: {results[0].get('filename')}")
+
             print("\nAsystent: ", end="", flush=True)
-            response = session.chat(user)
+            response = session.chat(user, extra_context=extra)
             print(response)
     
     finally:

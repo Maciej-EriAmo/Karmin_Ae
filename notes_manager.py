@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 notes_manager.py v1.4
-Notatki jako pliki .md z integracją holonP.
+Notatki jako pliki .md z integracją holon_item / HoloMem.
 Autor: Maciej Mazur
 """
 
@@ -207,27 +207,16 @@ class NotesManager:
 
     def inject_note(self, holomem, note: Note) -> None:
         """Wstrzykuje pojedynczą notatkę do pamięci Holona jako fakt."""
-        try:
-            from holonP import Item
-        except ImportError:
-            # Jeśli nie ma holonP, próbujemy dodać do store bezpośrednio
-            if hasattr(holomem, 'store') and isinstance(holomem.store, list):
-                fake_item = type('Item', (), {})
-                fake_item.id = f"note_{uuid.uuid4().hex[:8]}"
-                fake_item.content = f"{NOTE_PREFIX} {note.title}:\n{note.summary}"
-                fake_item.embedding = [0.0] * holomem.cfg.total_dim
-                fake_item.age = 0
-                fake_item.recalled = True
-                fake_item.relevance = 2.0 if note.pinned else 1.5
-                fake_item.is_fact = True
-                fake_item.created_at = note.updated_at
-                holomem.store.append(fake_item)
+        from holon_embedder import embed_for_item
+        from holon_item import Item
+
+        if not hasattr(holomem, "store") or not isinstance(holomem.store, list):
             return
         content = f"{NOTE_PREFIX} {note.title}:\n{note.summary}"
         item = Item(
             id=f"note_{uuid.uuid4().hex[:8]}",
             content=content,
-            embedding=[0.0] * holomem.cfg.total_dim,
+            embedding=embed_for_item(holomem, content),
             age=0,
             recalled=True,
             relevance=2.0 if note.pinned else 1.5,

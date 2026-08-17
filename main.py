@@ -3,7 +3,7 @@
 from holon_session import Session
 
 print("=" * 60)
-print("holonP v5.12 — EriAmo / HolonOS")
+print("Karmin_Ae v5.13 — EriAmo chat")
 print("=" * 60)
 
 session  = Session(memory_path="holon_memory.json")

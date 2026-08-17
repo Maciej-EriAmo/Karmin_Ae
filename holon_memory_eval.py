@@ -438,7 +438,10 @@ def run_golden_eval() -> Dict[str, Any]:
         needle = f"LEXNEEDLE_{uuid.uuid4().hex[:8]}"
         am.remember(f"[Holon] indeks lexical {needle} ścieżka B2", kind="fact")
         for i in range(40):
-            am.remember(f"noise filler item number {i} xyz", kind="note")
+            am.remember(
+                f"noise filler {i} unique_{uuid.uuid4().hex[:8]} topic{i} xyz",
+                kind="note",
+            )
         check("b2_lex_index_docs",
               am.lex_index.stats().get("docs", 0) >= 10,
               str(am.lex_index.stats()))

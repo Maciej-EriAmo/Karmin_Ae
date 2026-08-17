@@ -118,7 +118,7 @@ class AwareSession:
         if self.notes: modules.append(f"notes({self.notes.count})")
         if self.tasks: modules.append(f"tasks({self.tasks.count})")
         
-        print(f"\n[holonP v5.12 AWARE] tur={s['turns']} store={s['store']} "
+        print(f"\n[Karmin_Ae v5.13 AWARE] tur={s['turns']} store={s['store']} "
               f"delta={s['delta_hours']}h [{', '.join(modules)}]")
         
         # Start reminder watcher with callback

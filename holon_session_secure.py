@@ -85,7 +85,7 @@ class SecureSession:
         s    = self.holomem.stats()
         aii  = s["aii"]
         scanner_status = "ON" if self._enable_scanner else "OFF"
-        print(f"\n[holonP v5.12 SECURE] tur={s['turns']} store={s['store']} "
+        print(f"\n[Karmin_Ae v5.13 SECURE] tur={s['turns']} store={s['store']} "
               f"delta={s['delta_hours']}h scanner={scanner_status} "
               f"aii={aii['emotion']}(focus:{aii['focus']})")
         self._watcher = ReminderWatcher(self.holomem)
@@ -193,7 +193,7 @@ class SecureSession:
 
     # ── Chat ───────────────────────────────────────────────────────────────
 
-    def chat(self, user_input: str) -> str:
+    def chat(self, user_input: str, extra_context: str = "") -> str:
         # === LAYER 0: Security scan ===
         is_safe, security_msg = self._scan_input(user_input)
         if not is_safe:
@@ -202,6 +202,9 @@ class SecureSession:
         # === Normal flow ===
         current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         time_context     = f"Aktualna data i godzina: {current_time_str}"
+        extra = (extra_context or "").strip()
+        if extra:
+            time_context += "\n\n" + extra
 
         if len(user_input) > 5:
             reminder_text, reminder_time = self._parse_reminder(user_input)

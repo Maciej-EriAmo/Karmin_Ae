@@ -155,13 +155,19 @@ def main(argv=None) -> int:
         if project:
             project_source = "last_or_env"
 
-    # 1 aktywny work na projekt (tarcia: work-spam)
+    # B13: wejdź do komory (zapisz poprzednią). --all-projects = bęben,
+    # enforce 1 work *na komorę*, nigdy globalnie.
+    entered = {}
     try:
-        dem = am.enforce_max_work(project=project or "", max_active=1, save=True)
-        if dem.get("demoted"):
-            pass  # cicho; stats w handoff pokaza work po demote
+        entered = am.enter(project)
+        dem = {"demoted": int(entered.get("demoted") or 0)}
+        if entered.get("restored_work") or dem.get("demoted"):
+            am.save()
     except Exception:
-        dem = {"demoted": 0}
+        try:
+            dem = am.enforce_max_work(project=project or "", max_active=1, save=True)
+        except Exception:
+            dem = {"demoted": 0}
 
     want_md = bool(args.md or args.out)
     hybrid = False if args.strict_delta else None
@@ -227,6 +233,9 @@ def main(argv=None) -> int:
             "mneme_recall": f'python -m holon_mneme --path "{mem_path}" "RECALL \\"…\\" TOP 5"',
             "remember_fact": f'python holon_agent_memory.py --path "{mem_path}" remember --fact "…"',
             "set_work": f'python holon_agent_memory.py --path "{mem_path}" set-work "…" --project {project or "Holon"}',
+            "enter": f'python holon_agent_memory.py --path "{mem_path}" enter --project {project or "Holon"}',
+            "leave": f'python holon_agent_memory.py --path "{mem_path}" leave --work-text "…" --fact-text "…" --project {project or "Holon"}',
+            "chambers": f'python holon_agent_memory.py --path "{mem_path}" chambers',
             "close": f'python holon_agent_memory.py --path "{mem_path}" close --work-text "…" --fact-text "…" --project {project or "Holon"}',
             "crystallize": f'python holon_agent_memory.py --path "{mem_path}" crystallize'
             + (f" --project {project}" if project else ""),
@@ -239,14 +248,20 @@ def main(argv=None) -> int:
         boot_meta["protocol_short"] = [
             "1. Start: python agent_boot.py [--project X] [--since 24h] (compact ON)",
             "2. Pelnieszy handoff: --rich",
-            "3. 1 work: set-work --max-active 1 / close",
-            "4. Fact: remember --fact \"[Projekt] ...\"",
+            "3. enter P -> praca -> leave/close (zapis komory)",
+            "4. Obrót: enter Q (inna komora zostaje) albo koniec",
             "5. Store szumi: crystallize [--project X]",
             "6. Human: START.cmd | Chat: START_CHAT.cmd",
         ]
     boot_meta["handoff_compact"] = use_compact
     if dem.get("demoted"):
         boot_meta["work_demoted"] = dem
+    if entered:
+        boot_meta["enter"] = {
+            "previous": entered.get("previous"),
+            "switched": entered.get("switched"),
+            "restored_work": entered.get("restored_work"),
+        }
     # Dwa tory: agent=CLI, człowiek=GUI (norma UX poza power-userami)
     handoff["surfaces"] = {
         "agent": {
@@ -256,6 +271,9 @@ def main(argv=None) -> int:
             "assist_close": "python holon_agent_memory.py assist --task draft-close",
             "remember": 'python holon_agent_memory.py remember --fact "..."',
             "set_work": 'python holon_agent_memory.py set-work "..."',
+            "enter": "python holon_agent_memory.py enter --project P",
+            "leave": 'python holon_agent_memory.py leave --work-text "..." --fact-text "..." --project P',
+            "chambers": "python holon_agent_memory.py chambers",
             "close": 'python holon_agent_memory.py close --work-text "..." --fact-text "..."',
             "status_json": "python karmin_app.py --status",
             "chat_brainstorm": "python karmin_app.py -c chat",

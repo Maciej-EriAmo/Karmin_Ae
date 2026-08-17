@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 knowledge_store.py v1.0
-Most między WebExtractor, FractalMemory i holonP.
+Most między WebExtractor, opcjonalnym indeksem i holon_item.
 
 Przepływ:
   URL → WebExtractor → .md na SD → FractalMemory (indeks) → Holon (recall)
@@ -358,6 +358,17 @@ class KnowledgeStore:
 # INTEGRACJA Z HOLONP
 # ============================================================
 
+def format_knowledge_for_prompt(hit: dict, *, max_chars: int = 800) -> str:
+    """Blok do system/user promptu — bez zapisu do store."""
+    if not hit:
+        return ""
+    name = str(hit.get("filename") or "knowledge")
+    body = (hit.get("summary") or hit.get("text") or "").strip()
+    if not body:
+        return ""
+    return f"[WIEDZA lokalna: {name}]\n{body[:max_chars]}"
+
+
 def inject_knowledge(holomem, knowledge_store: KnowledgeStore, query: str,
                      top_k: int = 2) -> list:
     """
@@ -371,10 +382,8 @@ def inject_knowledge(holomem, knowledge_store: KnowledgeStore, query: str,
     import time as _time
     import uuid as _uuid
 
-    try:
-        from holonP import Item
-    except ImportError:
-        return []
+    from holon_embedder import embed_for_item
+    from holon_item import Item
 
     results = knowledge_store.recall(query, top_k=top_k)
     injected = []
@@ -382,11 +391,11 @@ def inject_knowledge(holomem, knowledge_store: KnowledgeStore, query: str,
     for res in results:
         if res['score'] < 0.1:
             continue
-        # Wstrzyknij jako is_fact=True z niskim age (zawsze w window)
+        content = f"[WIEDZA] {res['filename']}:\n{res['summary']}"
         item = Item(
             id=f"know_{_uuid.uuid4().hex[:8]}",
-            content=f"[WIEDZA] {res['filename']}:\n{res['summary']}",
-            embedding=[0.0] * holomem.cfg.total_dim,  # placeholder
+            content=content,
+            embedding=embed_for_item(holomem, content),
             age=0,
             recalled=True,
             relevance=1.5,

@@ -70,7 +70,7 @@ Mneme dodaje **cienki graf jawny** obok przestrzeni wektorowej — dwa tryby eks
 │                                         │
 │  primary persistence:                   │
 │    holon_memory.json  → nodes (jak dziś)│
-│    holon_links.json   → edges (Mneme)   │
+│    holon_memory_links.json   → edges (Mneme)   │
 └─────────────────────────────────────────┘
 ```
 
@@ -161,7 +161,7 @@ SOFTDROP work "stary wątek"     # work → fact (jak set-work demotion)
 | `TRACE` | węzeł + 1-hop edges + skrót content |
 | `FOCUS` | filtr sesji + lekki bias rankingu |
 | `DIGEST` | `AgentMemory.digest(project=)` |
-| `LINK` | zapis do `holon_links.json` |
+| `LINK` | zapis do `holon_memory_links.json` |
 
 ### 4.4 Wynik (kontrakt dla modelu)
 
@@ -239,10 +239,10 @@ Przy wysokim similarity (`remember` merge) — **nie** twórz drugiego węzła; 
 | Artefakt | Plik | Git |
 |----------|------|-----|
 | nodes | `holon_memory.json` | ignore |
-| edges | `holon_links.json` | ignore |
+| edges | `holon_memory_links.json` | ignore |
 | snapshot edges+ids | opcjonalnie w `*.holon-karmin.json` później | ignore |
 
-Format `holon_links.json`:
+Format `holon_memory_links.json`:
 
 ```json
 {
@@ -265,7 +265,7 @@ MnemeStore  ──► AgentMemory / MemoryAPI  ──► holon_memory.json
     │                    │
     │ edges              │ Φ, HRR, vacuum
     ▼                    ▼
-holon_links.json    HoloMem (bez zmian prawa)
+holon_memory_links.json    HoloMem (bez zmian prawa)
     │
     └── opcjonalnie mirror durable → Karmin_DB (B3)
 ```
@@ -287,7 +287,7 @@ holon_links.json    HoloMem (bez zmian prawa)
 |------|--------|
 | **M0** | Design (ten doc) |
 | **M1** | Parser + `HOLD/RECALL/DIGEST/FOCUS` na AgentMemory |
-| **M2** | `holon_links.json` + `LINK/TRACE/WALK` |
+| **M2** | `holon_memory_links.json` + `LINK/TRACE/WALK` |
 | **M3** | `NEAR` + `ALONG` (HoloMem) |
 | **M4** | Auto-hub project + follows |
 | **M5** | Prompt block: „wolno tylko Mneme-L” w agent workflow |

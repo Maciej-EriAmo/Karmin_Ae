@@ -20,7 +20,7 @@ if readme_path.exists():
     long_description = readme_path.read_text(encoding="utf-8")
 else:
     long_description = """
-# Holon v5.12
+# Karmin_Ae / Holon v5.13
 
 Cognitive Architecture Layer for LLMs + SE agent surface (Plan B).
 
@@ -33,8 +33,8 @@ Features:
 - Security layer (PromptScanner)
 
 Usage:
-    from holon import Session
-    
+    from holon_session import Session
+
     session = Session(memory_path="holon_memory.json")
     session.start()
     response = session.chat("Hello!")
@@ -45,7 +45,7 @@ GitHub: github.com/Maciej-EriAmo/Holomem
 
 setup(
     name="holon",
-    version="5.12.0",
+    version="5.13.0",
     author="Maciej Mazur",
     author_email="maciej@eriamo.ai",
     description="Cognitive Architecture Layer for LLMs + SE agent surface",

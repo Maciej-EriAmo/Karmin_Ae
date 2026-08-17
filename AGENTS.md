@@ -89,15 +89,17 @@ Docs (głębiej):
 ## 2. Protokół w trakcie sesji
 
 ```text
-boot → assist (Ollama gemma3:4b)   (python holon_agent_memory.py assist)
-     → (opcjonalnie) suggested_mneme / RECALL/NEAR/WALK
+enter P  (agent_boot.py --project P)   ← ładuje komorę: 1 work + podstawy
+     → assist (opcjonalnie) / Mneme
      → praca w kodzie (Holon lub KarmazynOs — nie mylić)
-     → HOLD fact / remember --fact   (trwałe)
-     → set-work / HOLD work          (1 aktywny wątek)
-     → assist --task draft-close     (draft WORK/FACT; agent zatwierdza)
-     → close --work-text --fact-text (preferowane domknięcie)
-     → crystallize [--project P]     (gdy store szumi)
+     → remember --fact / set-work     (1 work w TEJ komorze)
+     → leave / close --work-text --fact-text   ← zapis stanu komory
+     → enter Q   albo koniec
+     → crystallize [--project P]      (gdy store szumi)
 ```
+
+Nie filtruj „na ślepo” innego projektu bez `enter`/`leave`: obrót zapisuje poprzednią komorę, nie ścina bębna.  
+`python holon_agent_memory.py chambers` — lista komór. `--all-projects` pokazuje bęben (1 work na komorę, nie 1 globalnie).
 
 **Pomocnik agenta** = `helper_llm_*` (domyślnie **Ollama / gemma3:4b**). Chat człowieka = `llm_*` (też może być Ollama).
 

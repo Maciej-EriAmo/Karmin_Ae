@@ -19,7 +19,7 @@ mem: MemoryAPI = open_memory("holon_memory.json", profile="agent")
 | `close(work=…, fact=…, project=…)` | **B10** atomowe domknięcie sesji + last_project |
 | `crystallize(project, dry_run=…)` | **B9** offline: merge near-dup, promote cluster→fact, demote work, wzmocnij Φ |
 | `on_remember(cb)` | **B4** hook po remember (add/merge) |
-| `save()` | JSON + KuRz dict |
+| `save()` | JSON + embedder dict (KuRz albo hash fallback) |
 | `stats()` | turns, store, facts, work, profile, lex_index, … |
 
 Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).

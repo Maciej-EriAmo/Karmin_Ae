@@ -10,25 +10,33 @@ from pathlib import Path
 
 # Lista obecności modułów i ich krytycznych zależności (standardowych i zewnętrznych)
 MODULES = [
-    ("holon_config",     []),
-    ("holon_item",       ["numpy"]),
-    ("holon_embedder",   ["numpy"]),
-    ("holon_aii",        ["numpy"]),
-    ("holon_holography", ["numpy"]),
-    ("holon_memory",     ["holon_config", "holon_item", "holon_holography", "holon_aii", "holon_embedder", "numpy"]),
-    ("holon_llm",        ["requests"]),
-    ("holon_watcher",    ["threading"]),
-    ("holon_holomem",    ["holon_config", "holon_item", "holon_holography", "holon_embedder", "holon_aii", "holon_memory", "numpy"]),
-    ("holon_session",    ["holon_config", "holon_embedder", "holon_holomem", "holon_watcher", "holon_llm", "holon_prompts", "notes_manager", "requests"]),
-    ("holon_prompts",    []),
+    ("holon_config",       []),
+    ("holon_item",         ["numpy"]),
+    ("holon_embedder",     ["numpy"]),
+    ("holon_aii",          ["numpy"]),
+    ("holon_holography",   ["numpy"]),
+    ("holon_memory",       ["holon_config", "holon_item", "holon_holography", "holon_aii", "holon_embedder", "numpy"]),
+    ("holon_llm",          ["requests"]),
+    ("holon_watcher",      ["threading"]),
+    ("holon_holomem",      ["holon_config", "holon_item", "holon_holography", "holon_embedder", "holon_aii", "holon_memory", "numpy"]),
+    ("holon_prompts",      []),
+    ("holon_lexindex",     []),
+    ("holon_helper",       []),
+    ("holon_mneme",        ["holon_agent_memory"]),
+    ("holon_remember_watch", []),
+    ("holon_backend_karmin", []),
+    ("holon_settings",     []),
+    ("holon_configure",    ["holon_settings"]),
     ("holon_agent_memory", ["holon_config", "holon_embedder", "holon_holomem", "holon_item", "numpy"]),
-    ("prompt_scanner",   ["re", "json"]),
-    ("web_extractor",    ["requests", "bs4"]), # bs4 z requirements.txt
-    ("knowledge_store",  ["numpy"]),
-    ("notes_manager",    ["pathlib"]),
-    ("tasks",            ["datetime"]),
-    ("holon_holography", ["numpy"]),
-    ("holon_aii",        ["numpy"])
+    ("agent_boot",         ["holon_agent_memory"]),
+    ("holon_session",      ["holon_config", "holon_embedder", "holon_holomem", "holon_watcher", "holon_llm", "holon_prompts", "notes_manager", "requests"]),
+    ("karmin_app",         []),
+    ("karmin_session",     []),
+    ("prompt_scanner",     ["re", "json"]),
+    ("web_extractor",      ["requests", "bs4"]),
+    ("knowledge_store",    ["numpy"]),
+    ("notes_manager",      ["pathlib"]),
+    ("tasks",              ["datetime"]),
 ]
 
 def check_module(name: str, deps: list) -> tuple:
@@ -62,7 +70,7 @@ def check_module(name: str, deps: list) -> tuple:
 
 def main():
     print("=" * 60)
-    print("  Holon v5.11 — Weryfikacja spójności systemu")
+    print("  Karmin_Ae v5.13 — Weryfikacja spójności systemu")
     print("=" * 60)
     print()
     

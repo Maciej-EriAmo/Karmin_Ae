@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 tasks.py v1.0
-Lista zadań jako pliki .md z integracją holonP.
+Lista zadań jako pliki .md z integracją holon_item / HoloMem.
 
 Filozofia:
   - Każde zadanie to wpis w tasks.md — czytelny bez oprogramowania
@@ -437,23 +437,20 @@ class TasksManager:
             parts.append(f"{overdue} przeterminowanych ⚠️")
         return ", ".join(parts)
 
-    # ── Integracja z holonP ──────────────────────────────────────────────────
+    # ── Integracja z HoloMem ──────────────────────────────────────────────────
 
     def inject_into_holon(self, holomem, max_tasks: int = 5) -> list:
         """
         Wstrzykuje aktywne zadania do store Holona.
         Pilne zadania trafiają jako is_work=True.
         """
-        try:
-            from holonP import Item
-        except ImportError:
-            return []
+        from holon_embedder import embed_for_item
+        from holon_item import Item
 
         tasks = self.list_active()[:max_tasks]
         if not tasks:
             return []
 
-        # Zbuduj blok zadań
         lines = ["Aktywne zadania:"]
         for t in tasks:
             due = f" [do {t.due_str}]" if t.due_date else ""
@@ -461,13 +458,11 @@ class TasksManager:
             lines.append(f"- {t.priority.icon} {t.title}{due}{overdue}")
 
         content = f"{TASK_PREFIX}\n" + "\n".join(lines)
-
         has_high = any(t.priority == Priority.HIGH for t in tasks)
-
-        item = __import__('holonP', fromlist=['Item']).Item(
+        item = Item(
             id=f"tasks_{uuid.uuid4().hex[:8]}",
             content=content,
-            embedding=[0.0] * holomem.cfg.total_dim,
+            embedding=embed_for_item(holomem, content),
             age=0,
             recalled=True,
             relevance=2.5 if has_high else 2.0,
@@ -662,7 +657,7 @@ if __name__ == "__main__":
     # Dodaj zadania
     t1 = tm.add("Zrób zakupy", priority=Priority.NORMAL,
                  tags=["dom"])
-    t2 = tm.add("Napisz testy holonP", priority=Priority.HIGH,
+    t2 = tm.add("Napisz testy Holon", priority=Priority.HIGH,
                  project="holon", tags=["kod"])
     t3 = tm.add("Przeczytaj artykuł o AI",
                  priority=Priority.LOW, tags=["nauka"])

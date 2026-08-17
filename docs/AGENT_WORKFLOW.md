@@ -37,9 +37,11 @@ Opis: [AII_PROTO_EMOTIONS.md](AII_PROTO_EMOTIONS.md).
                                       remember / set-work
                                              │
                                              ▼
-                                      close / crystallize
-                                      save (holon_memory.json)
+                                      leave / close (zapis komory)
+                                      enter Q | koniec
 ```
+
+B13: `enter P` ładuje komorę, `leave`/`close` zapisuje stan, obrót nie ścina innych projektów. `chambers` = bęben. Szczegóły: [B10_HANDOFF.md](B10_HANDOFF.md#b13--komory-enter--leave).
 
 **Pomocnik agenta** (nie chat człowieka) — moduł [`holon_helper.py`](../holon_helper.py):
 
