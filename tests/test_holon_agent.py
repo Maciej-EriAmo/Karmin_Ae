@@ -263,6 +263,72 @@ class TestProjectChambers(unittest.TestCase):
             self.assertEqual(am.read_last_project(), "Zed")
 
 
+class TestChamberIsolation(unittest.TestCase):
+    def test_match_is_prefix_not_substring(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            am.remember("[lore-editor] Holon wspomniany przy okazji", kind="fact")
+            am.remember("[Holon] tylko protokół SE", kind="fact")
+            h = am.handoff(project="Holon", compact=True, include_digest=False)
+            texts = " ".join(x.get("content") or "" for x in (h.get("key_facts") or []))
+            self.assertIn("protokół SE", texts)
+            self.assertNotIn("lore-editor", texts)
+
+    def test_no_merge_across_chambers(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            a = am.remember("[Alpha] ten sam temat slab freelist", kind="fact")
+            b = am.remember("[Beta] ten sam temat slab freelist", kind="fact")
+            self.assertNotEqual(a.id, b.id)
+            tagged = [
+                i
+                for i in am.hm.store
+                if i.is_fact and am._project_tag(i.content) in ("Alpha", "Beta")
+            ]
+            self.assertEqual(len(tagged), 2)
+
+    def test_remember_stamps_project(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            it = am.remember("goły tekst bez tagu", kind="fact", project="AstraEdit")
+            self.assertEqual(am._project_tag(it.content), "AstraEdit")
+
+    def test_separate_moves_sheet_out_of_karminql(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            am.remember("[KarminQL] Karmin_Sheet Faza 3 JEST", kind="fact")
+            am.remember("[KarminQL] silnik SCAL PO w DBase", kind="fact")
+            dry = am.separate_chambers(dry_run=True)
+            self.assertEqual(dry["moved"], 1)
+            self.assertEqual(am._project_tag(am.hm.store[0].content), "KarminQL")
+            live = am.separate_chambers(dry_run=False)
+            self.assertEqual(live["moved"], 1)
+            sheet = [i for i in am.hm.store if am._match_project(i.content, "Karmin_Sheet")]
+            ql = [i for i in am.hm.store if am._match_project(i.content, "KarminQL")]
+            self.assertEqual(len(sheet), 1)
+            self.assertEqual(len(ql), 1)
+            h = am.handoff(project="KarminQL", compact=True, include_digest=False)
+            blob = " ".join(x.get("content") or "" for x in (h.get("key_facts") or []))
+            self.assertIn("SCAL PO", blob)
+            self.assertNotIn("Faza 3", blob)
+
+
 class TestHolonItemInject(unittest.TestCase):
     def test_inject_note_uses_real_item(self):
         from notes_manager import NotesManager, NOTE_PREFIX

@@ -120,6 +120,7 @@ python holon_agent_memory.py chambers
 - `leave` / `close` — atomowo work+fact **i** zapis komory w `holon_memory.meta.json` (`chambers`).
 - `enforce_max_work` bez projektu: 1 work **na komorę**, nie 1 work na cały store.
 - Handoff: `chamber` (work + ≤3 facts) + `chambers` (nazwy bębna).
+- **Separacja:** `_match_project` = wyłącznie prefiks `[Tag]` na czele (alias tylko pisowni tagu, np. `sheet`→`Karmin_Sheet`). Słowo w ciele („Holon”, „eriamo”) **nie** wciąga faktu do obcej komory. `remember --project P` stawia `[P]`. Merge nie przechodzi między tagami. Higiena zlepków: `separate [--dry-run]`.
 
 ## Czego B10 **nie** robi
 

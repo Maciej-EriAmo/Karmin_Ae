@@ -83,6 +83,61 @@ AGENT_SEED: Tuple[Tuple[str, str], ...] = (
      "Holon tylko pamięć. Następne Karmazyn: wg Documents/rust_roadmap_tech (po R5)."),
 )
 
+# Komora = wyłącznie prefiks [Tag] na czele treści. Nie słowo w środku zdania.
+_TAG_HEAD_RE = re.compile(r"^\s*\[([^\]]+)\]")
+# Inna pisownia TEGO SAMEGO bębna — nigdy alias z ciała faktu (żadnego «eriamo»).
+_TAG_ALIASES = {
+    "karmin_sheet": "Karmin_Sheet",
+    "karmin-sheet": "Karmin_Sheet",
+    "sheet": "Karmin_Sheet",
+    "karminql": "KarminQL",
+    "karmazynos": "Karmazyn",
+    "karmazyn_os": "Karmazyn",
+    "karmazyn-os": "Karmazyn",
+}
+# Zlepki: zły prefiks przy jasnym podmiocie → właściwa komora.
+_RETAG_HEAD = (
+    (re.compile(r"^\[KarminQL\]\s*Karmin_Sheet\b", re.I), "Karmin_Sheet"),
+    (re.compile(r"^\[Holon\]\s*lore-editor\b", re.I), "lore-editor"),
+    (re.compile(r"^\[Holon\]\s*lore-game\b", re.I), "lore-game"),
+    (re.compile(r"^\[Holon\]\s*AstraEdit\b", re.I), "AstraEdit"),
+    (re.compile(r"^\[KarminQL\]\s*AstraEdit\b", re.I), "AstraEdit"),
+)
+
+
+def canon_project_tag(tag: str) -> str:
+    raw = (tag or "").strip()
+    if not raw:
+        return ""
+    key = raw.lower().replace(" ", "_")
+    return _TAG_ALIASES.get(key, raw)
+
+
+def project_tag_of(content: str) -> str:
+    m = _TAG_HEAD_RE.match(content or "")
+    return canon_project_tag(m.group(1)) if m else ""
+
+
+def stamp_project_prefix(content: str, project: str) -> str:
+    text = (content or "").strip()
+    proj = canon_project_tag(project)
+    if not text or not proj:
+        return text
+    have = project_tag_of(text)
+    if have:
+        return text
+    return f"[{proj}] {text}"
+
+
+def replace_project_prefix(content: str, project: str) -> str:
+    text = (content or "").strip()
+    proj = canon_project_tag(project)
+    if not text or not proj:
+        return text
+    if _TAG_HEAD_RE.match(text):
+        return _TAG_HEAD_RE.sub(f"[{proj}]", text, count=1)
+    return f"[{proj}] {text}"
+
 
 class AgentMemory:
     """Odczyt/zapis store Holona pod kątem agenta SE, bez LLM."""
@@ -205,11 +260,15 @@ class AgentMemory:
     # ── Zapis / odczyt ────────────────────────────────────────────────────
 
     def remember(self, content: str, kind: str = "fact",
-                 relevance: float = 1.5) -> Item:
-        """Dodaje lub sematycznie scala wpis. kind: fact | work | note."""
+                 relevance: float = 1.5, project: str = "") -> Item:
+        """Dodaje lub sematycznie scala wpis. kind: fact | work | note.
+
+        ``project`` stawia ``[P]`` gdy brak prefiksu. Merge nie przechodzi
+        między komorami (osobne pamięci).
+        """
         if not self._started:
             self.start()
-        content = (content or "").strip()
+        content = stamp_project_prefix((content or "").strip(), project)
         if not content:
             raise ValueError("pusta treść")
         kind = kind.lower().strip()
@@ -222,7 +281,10 @@ class AgentMemory:
         merge_thr = float(getattr(self.hm.cfg, "remember_merge_sim", 0.88))
         # 1) exact / prefix — KuRz często nie scala tego samego tekstu (sim≪0.9)
         c_norm = content[:800].strip().lower()
+        src_tag = project_tag_of(content)
         for it in self.hm.store:
+            if not self._same_chamber(content, it.content or ""):
+                continue
             ic = (it.content or "").strip().lower()
             if ic == c_norm or (len(c_norm) > 40 and (ic.startswith(c_norm[:80])
                                                       or c_norm.startswith(ic[:80]))):
@@ -230,7 +292,11 @@ class AgentMemory:
                 break
         if best is None and self.hm.store:
             best_sim, cand = self.hm._find_best_match(emb)
-            if cand is not None and best_sim > merge_thr:
+            if (
+                cand is not None
+                and best_sim > merge_thr
+                and self._same_chamber(content, cand.content or "")
+            ):
                 best = cand
         if best is not None:
             self.hm._semantic_merge(best, emb)
@@ -307,25 +373,25 @@ class AgentMemory:
 
     @staticmethod
     def _project_tag(content: str) -> str:
-        m = re.match(r"\[([^\]]+)\]", (content or "").strip())
-        return (m.group(1).strip() if m else "")
+        return project_tag_of(content)
+
+    @staticmethod
+    def _same_chamber(a: str, b: str) -> bool:
+        ta, tb = project_tag_of(a), project_tag_of(b)
+        if not ta and not tb:
+            return True
+        if not ta or not tb:
+            return False
+        return ta.lower() == tb.lower()
 
     def _match_project(self, content: str, project: str) -> bool:
+        """Komora = prefiks [Tag]. Untagged i obce tagi nie wchodzą."""
         if not project:
             return True
-        c = (content or "").lower()
-        p = project.lower().strip()
-        if f"[{p}]" in c:
-            return True
-        # aliasy
-        aliases = {
-            "karmazyn": ("karmazyn", "kentry", "slab", "karmazynos"),
-            "holon": ("holon", "eriamo", "agent memory", "memoryapi"),
-        }
-        for key, words in aliases.items():
-            if p == key or p in words:
-                return any(w in c for w in words)
-        return p in c
+        tag = project_tag_of(content)
+        if not tag:
+            return False
+        return tag.lower() == canon_project_tag(project).lower()
 
     def digest(self, max_facts: int = 12, max_work: int = 8,
                max_recent: int = 6, project: str = "") -> str:
@@ -486,9 +552,8 @@ class AgentMemory:
         content = (content or "").strip()
         if not content:
             raise ValueError("pusta treść")
-        proj = (project or "").strip()
-        if proj and f"[{proj}]" not in content and f"[{proj.lower()}]" not in content.lower():
-            content = f"[{proj}] {content}"
+        proj = canon_project_tag(project)
+        content = stamp_project_prefix(content, proj)
         if max_active is None:
             max_active = int(getattr(self.hm.cfg, "set_work_max_active", 1))
         max_active = max(1, int(max_active))
@@ -698,6 +763,42 @@ class AgentMemory:
         )
         return {"ok": True, "last_project": last or None, "chambers": out}
 
+    def separate_chambers(self, *, dry_run: bool = False) -> dict:
+        """Rozdziel zlepki: zły prefiks przy jasnym podmiocie → właściwa komora."""
+        if not self._started:
+            self.start()
+        moved: List[dict] = []
+        for item in self.hm.store:
+            raw = item.content or ""
+            dest = ""
+            for rx, tag in _RETAG_HEAD:
+                if rx.match(raw):
+                    dest = tag
+                    break
+            if not dest:
+                continue
+            new_c = replace_project_prefix(raw, dest)
+            if new_c == raw:
+                continue
+            moved.append({
+                "id": item.id,
+                "from": project_tag_of(raw) or "?",
+                "to": dest,
+                "content": new_c[:160],
+            })
+            if not dry_run:
+                item.content = new_c[:800]
+        seeded: List[str] = []
+        if not dry_run and moved:
+            seeded = self.seed_live_work_chambers()
+        return {
+            "ok": True,
+            "dry_run": bool(dry_run),
+            "moved": len(moved),
+            "items": moved[:40],
+            "chambers": seeded,
+        }
+
     def enter(
         self,
         project: str,
@@ -806,9 +907,7 @@ class AgentMemory:
             report["work_id"] = item_w.id
             report["work"] = (item_w.content or "")[:200]
         if f:
-            if proj and f"[{proj}]" not in f and f"[{proj.lower()}]" not in f.lower():
-                f = f"[{proj}] {f}"
-            item_f = self.remember(f, kind="fact", relevance=1.55)
+            item_f = self.remember(f, kind="fact", relevance=1.55, project=proj)
             report["fact_id"] = item_f.id
             report["fact"] = (item_f.content or "")[:200]
             if proj:
@@ -1513,10 +1612,10 @@ class AgentMemory:
             ),
             "agent_protocol": [
                 "1. Wejście: agent_boot.py --project P (ładuje komorę).",
-                "2. Praca: remember --fact / set-work (1 work w tej komorze).",
-                "3. Wyjście: close/leave — zapis stanu komory.",
-                "4. Obrót: enter Q (poprzednia komora zostaje) albo koniec.",
-                "5. Store szumi: crystallize [--project P]. Nie resetuj store.",
+                "2. Praca: remember --fact --project P / set-work (1 work, prefiks [P]).",
+                "3. Fakty komórki = tylko treść zaczynająca się od [P]. Nie zlepek.",
+                "4. Wyjście: close/leave — zapis stanu komory.",
+                "5. Obrót: enter Q. Zlepki: holon_agent_memory.py separate.",
             ],
             "paths": {
                 "memory": self.memory_path,
@@ -1555,7 +1654,7 @@ class AgentMemory:
             # mniej tokenow: krotki protocol; bez dublowania anchors=key_facts
             out["agent_protocol"] = [
                 "enter P -> praca -> leave/close -> enter Q | koniec; "
-                "1 work na komorę; nie resetuj store.",
+                "1 work na komorę; fakty tylko z [P] na czele; nie mieszaj komór.",
             ]
             out["chronicle"] = []
             # full compact: anchors juz = key_facts — nie dubluj
@@ -1991,7 +2090,7 @@ def _main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("cmd", choices=[
         "digest", "remember", "recall", "seed", "stats", "status", "collab-test", "eval",
         "ablation", "llm-slot", "handoff", "handoff-md", "set-work", "close",
-        "enter", "leave", "chambers",
+        "enter", "leave", "chambers", "separate",
         "boot", "crystallize", "watch-remember",
         "assist", "helper",  # Gemini/SE helper for agent (not chat)
         "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
@@ -2204,6 +2303,13 @@ def _main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "chambers":
         print(json.dumps(am.list_chambers(), indent=2, ensure_ascii=False, default=str))
         return 0
+
+    if args.cmd == "separate":
+        rep = am.separate_chambers(dry_run=bool(args.dry_run))
+        if not args.dry_run and not args.no_save:
+            rep["saved"] = bool(am.save())
+        print(json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
 
     if args.cmd == "enter":
         proj = (args.project or "").strip()
@@ -2432,7 +2538,7 @@ def _main(argv: Optional[List[str]] = None) -> int:
             kind = args.kind
         else:
             kind = "fact"
-        item = am.remember(text, kind=kind)
+        item = am.remember(text, kind=kind, project=args.project)
         if not args.no_save:
             ok = am.save()
             print(f"remembered [{kind}] id={item.id[:8]}… save={'ok' if ok else 'FAIL'}")

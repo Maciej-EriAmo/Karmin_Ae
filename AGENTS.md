@@ -69,7 +69,7 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **Handoff** | ten sam protokół w API | `python holon_agent_memory.py handoff --no-digest` |
 | **handoff-md** | B7 — handoff jako Markdown | `python holon_agent_memory.py handoff-md --out handoff.md` |
 | **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |
-| **remember / set-work** | zapis fact/work (1 work domyślnie) | `python holon_agent_memory.py remember --fact "…"` |
+| **remember / set-work** | zapis fact/work (1 work; **prefiks `[P]`**) | `python holon_agent_memory.py remember --fact "…" --project P` |
 | **close** | B10 — koniec sesji work+fact | `python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P` |
 | **crystallize** | B9 — stałe ścieżki (merge/Φ) | `python holon_agent_memory.py crystallize [--project Holon]` |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
@@ -92,12 +92,15 @@ Docs (głębiej):
 enter P  (agent_boot.py --project P)   ← ładuje komorę: 1 work + podstawy
      → assist (opcjonalnie) / Mneme
      → praca w kodzie (Holon lub KarmazynOs — nie mylić)
-     → remember --fact / set-work     (1 work w TEJ komorze)
+     → remember --fact --project P / set-work     (1 work; tylko [P] na czele)
      → leave / close --work-text --fact-text   ← zapis stanu komory
      → enter Q   albo koniec
      → crystallize [--project P]      (gdy store szumi)
 ```
 
+Komora = **osobna pamięć**: w handoffie tylko fakty zaczynające się od `[P]`.  
+Nie wrzucaj Sheet do KarminQL, lore do Holona, AstraEdit do Holona.  
+Zlepki: `python holon_agent_memory.py separate --dry-run` · potem bez `--dry-run`.  
 Nie filtruj „na ślepo” innego projektu bez `enter`/`leave`: obrót zapisuje poprzednią komorę, nie ścina bębna.  
 `python holon_agent_memory.py chambers` — lista komór. `--all-projects` pokazuje bęben (1 work na komorę, nie 1 globalnie).
 
