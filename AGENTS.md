@@ -71,9 +71,11 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **Mneme-L** | zapytywalna pamięć + graf | `python -m holon_mneme --repl` |
 | **remember / set-work** | zapis fact/work (1 work; **prefiks `[P]`**) | `python holon_agent_memory.py remember --fact "…" --project P` |
 | **close** | B10 — koniec sesji work+fact | `python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P` |
-| **crystallize** | B9 — stałe ścieżki (merge/Φ) | `python holon_agent_memory.py crystallize [--project Holon]` |
+| **crystallize** | B9 — stałe ścieżki (merge/Φ; `--cross-project` świadomie) | `python holon_agent_memory.py crystallize [--project Holon]` |
+| **entangle** | metryka fact↔work w komorze | `python holon_agent_memory.py entangle --project Holon` |
+| **Bridge→Prism** | mixer tokenów (agent ON) → teleport Φ; bez Embeddera | docs: [docs/BRIDGE.md](docs/BRIDGE.md) · `HOLON_USE_BRIDGE=0` wyłącza |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
-| **eval** | reggresja | `python holon_agent_memory.py eval` |
+| **eval** | regresja | `python holon_agent_memory.py eval` |
 | **ablation** | B6 flat vs prism | `python holon_agent_memory.py ablation` |
 | **watch-remember** | B4 inbox JSONL | `python holon_agent_memory.py watch-remember --once` |
 
@@ -153,7 +155,7 @@ python holon_agent_memory.py set-work "następny krok" --project Karmazyn
 - **Konfigurator:** `python holon_configure.py help` · `wizard` · `doctor` · `gui`  
   → `holon_settings.json` (gitignore); język: `--lang en` / `set ui_lang en` / `HOLON_UI_LANG`  
   docs: [docs/CONFIGURE.md](docs/CONFIGURE.md)  
-- Env: `HOLON_DATA_HOME`, `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_LLM_*`, `HOLON_UI_LANG`, `HOLON_KARMIN_PATH`
+- Env: `HOLON_DATA_HOME`, `HOLON_PROFILE`, `HOLON_DEFAULT_PROJECT`, `HOLON_USE_BRIDGE`, `HOLON_BRIDGE_PATH`, `HOLON_LLM_*`, `HOLON_UI_LANG`, `HOLON_KARMIN_PATH`
 
 ---
 

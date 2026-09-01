@@ -76,6 +76,160 @@ class HoloMem:
         else:
             self.prism_router = None
 
+        # Bridge Transformer (opcjonalny) — lazy init + kalibracja przy pierwszym Φ.
+        self.bridge_stack = None
+        self._bridge_status = "off"
+        self._bridge_calibrated = False
+        if bool(getattr(self.cfg, "use_bridge", False)):
+            self._bridge_status = "pending"
+
+    def _ensure_bridge(self) -> bool:
+        """Leniwie podłącz ``transform.py`` + krótka kalibracja. False = tor klasyczny."""
+        if not bool(getattr(self.cfg, "use_bridge", False)):
+            self._bridge_status = "off"
+            return False
+        if self.bridge_stack is not None and self._bridge_calibrated:
+            return True
+        if self._bridge_status == "unavailable":
+            return False
+        try:
+            from holon_bridge import BridgeStack, load_bridge_module
+
+            load_bridge_module()  # fail-fast jeśli brak transform.py
+            d_model = int(getattr(self.cfg, "bridge_d_model", 64) or 64)
+            n_heads = int(getattr(self.cfg, "bridge_n_heads", 4) or 4)
+            n_layers = int(getattr(self.cfg, "bridge_n_layers", 2) or 2)
+            if d_model % n_heads != 0:
+                n_heads = 4 if d_model % 4 == 0 else 2
+            self.bridge_stack = BridgeStack(
+                d_model=d_model,
+                n_heads=n_heads,
+                n_layers=n_layers,
+                n_classes=8,
+                phi_levels=int(self.cfg.phi_levels),
+                kind="bridge",
+            )
+            steps = int(getattr(self.cfg, "bridge_calibrate_steps", 400) or 0)
+            if steps > 0 and not self._bridge_calibrated:
+                self._calibrate_bridge_inplace(steps=steps, seed=11)
+            self._bridge_calibrated = True
+            self._bridge_status = "on"
+            return True
+        except Exception as e:
+            self.bridge_stack = None
+            self._bridge_status = f"unavailable:{type(e).__name__}"
+            return False
+
+    _BRIDGE_WEIGHT_CACHE: dict = {}
+
+    def _calibrate_bridge_inplace(self, steps: int = 400, seed: int = 11) -> None:
+        """Dopasuj wagi BridgeStack do retrieval po energii (bez Embeddera)."""
+        import torch
+        import torch.nn.functional as F
+        from holon_bridge import load_bridge_module
+
+        mod = load_bridge_module()
+        fixed_path = __import__("pathlib").Path(
+            getattr(mod, "__holon_bridge_path__", "")
+        ).with_name("proca_bridge_transformer_fixed.py")
+        if not fixed_path.is_file():
+            return
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "holon_ext_bridge_fixed_cal", fixed_path
+        )
+        if spec is None or spec.loader is None:
+            return
+        fixed = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixed)
+
+        d_model = int(self.bridge_stack.d_model)
+        n_heads = int(getattr(self.cfg, "bridge_n_heads", 4) or 4)
+        n_layers = int(getattr(self.cfg, "bridge_n_layers", 2) or 2)
+        cache_key = (d_model, n_heads, n_layers, int(steps), int(seed))
+        model = self.bridge_stack.model
+        cached = HoloMem._BRIDGE_WEIGHT_CACHE.get(cache_key)
+        if cached is not None:
+            model.load_state_dict(cached)
+            model.eval()
+            return
+
+        # make_batch D=32; przy innym d_model — syntetyczne batche.
+        torch.manual_seed(seed)
+        model.train()
+        opt = torch.optim.Adam(model.parameters(), lr=3e-3)
+        n_classes = int(model.head.out_features)
+
+        for _ in range(max(1, steps)):
+            if d_model == 32:
+                b = fixed.make_batch(B=64, N=24, D=32, n_content=min(8, n_classes))
+                x, tracer, target = b.x, b.tracer, b.target
+            else:
+                B, N = 32, 16
+                energy = torch.rand(B, N) * 3.0
+                content = torch.randint(0, n_classes, (B, N))
+                x = torch.zeros(B, N, d_model)
+                n_content = min(n_classes, d_model)
+                x[..., :n_content].scatter_(-1, content.unsqueeze(-1), 1.0)
+                if d_model > n_content:
+                    x[..., n_content:] = 0.15 * torch.randn(B, N, d_model - n_content)
+                j = (energy[:, 1:] - energy[:, :1]).abs().argmin(1)
+                target = content[torch.arange(B), j + 1]
+                tracer = energy.unsqueeze(-1)
+            logits, _, _ = model(x, tracer)
+            loss = F.cross_entropy(logits, target)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+        model.eval()
+        HoloMem._BRIDGE_WEIGHT_CACHE[cache_key] = {
+            k: v.detach().cpu().clone() for k, v in model.state_dict().items()
+        }
+    def _bridge_mix_active(self, active: list, emotion_w: float) -> Optional[np.ndarray]:
+        """Złóż tokeny z Itemów (bez Embeddera.encode) → Bridge → wektor tdim."""
+        if not self._ensure_bridge() or self.bridge_stack is None:
+            return None
+        if len(active) < 2:
+            return None
+        import torch
+
+        d_model = int(self.bridge_stack.d_model)
+        tdim = int(self.cfg.total_dim)
+        rows = []
+        tracers = []
+        for item in active[:32]:
+            emb = np.asarray(item.emb_np(), dtype=np.float32).reshape(-1)
+            if len(emb) < d_model:
+                tok = np.concatenate(
+                    [emb, np.zeros(d_model - len(emb), dtype=np.float32)]
+                )
+            else:
+                tok = emb[:d_model].copy()
+            n = float(np.linalg.norm(tok)) + 1e-8
+            tok = tok / n
+            rows.append(tok)
+            phase = math.exp(-float(item.age) / float(self.cfg.vacuum_age_tau))
+            tr = float(item.relevance) * phase * float(emotion_w)
+            if item.is_work:
+                tr *= 1.2
+            if item.recalled:
+                tr *= 1.5
+            tracers.append(tr)
+        x = torch.as_tensor(np.stack(rows, axis=0), dtype=torch.float32)  # [N,D]
+        tracer = torch.as_tensor(tracers, dtype=torch.float32)
+        try:
+            fwd = self.bridge_stack.forward_tokens(x, tracer, pool="energy")
+        except Exception:
+            return None
+        pat = np.asarray(fwd.pattern, dtype=np.float32).reshape(-1)
+        if len(pat) < tdim:
+            pat = np.concatenate([pat, np.zeros(tdim - len(pat), dtype=np.float32)])
+        else:
+            pat = pat[:tdim]
+        n = float(np.linalg.norm(pat)) + 1e-8
+        return (pat / n).astype(np.float32)
+
     # ── Session ────────────────────────────────────────────────────────────
 
     def start_session(self) -> dict:
@@ -320,6 +474,12 @@ class HoloMem:
         if n < 1e-8:
             return
         pattern /= n
+
+        # Bridge (gdy ON): mixer tokenów+sondy bez Embeddera → wejście do Prism.
+        if bool(getattr(self.cfg, "use_bridge", False)):
+            mixed = self._bridge_mix_active(active, emotion_w)
+            if mixed is not None:
+                pattern = mixed
 
         recalled_count = sum(1 for i in window if i.recalled)
         importance     = emotion_w * (1.0 + 0.3 * recalled_count)
@@ -896,6 +1056,8 @@ class HoloMem:
             "surprise":      round(self._last_surprise, 4),
             "lr_current":    round(self.cfg.lr, 5),
             "prism_mode":    self.cfg.use_prism,
+            "bridge_mode":   bool(getattr(self.cfg, "use_bridge", False)),
+            "bridge_status": getattr(self, "_bridge_status", "off"),
         }
 
     def reset(self):

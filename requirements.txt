@@ -12,4 +12,8 @@ python-dateutil>=2.8.0   # Session reminder parser
 # Optional - KuRz embedder
 # kurz>=1.0.0            # bez pakietu: signed feature-hash (deterministyczny, nie randn)
 
+# Optional - Bridge Transformer (Config.agent use_bridge=True)
+# torch>=2.0.0           # + transform.py (HOLON_BRIDGE_PATH / Transformers/bridge_transformer)
+# bez torch: Holon działa; Bridge status = unavailable, tor klasyczny + Prism
+
 # HolonFS / HSS research → archiwum/ (nie w torze produktu)

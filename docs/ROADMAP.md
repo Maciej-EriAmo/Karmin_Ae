@@ -53,6 +53,7 @@ Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 | B11 | **Konfigurator** CLI + GUI + doctor (presety SE, `holon_settings.json`) | ✅ 2026-08 |
 | B12 | **Control Center** `karmin_app` / `START.cmd` — norma UX dla człowieka; `surfaces` w handoff | ✅ 2026-08 |
 | B13 | **Komory** enter/leave — 1 work na projekt, bęben w meta, `--all-projects` nie ścina globalnie | ✅ 2026-08 |
+| B14 | **Bridge→Prism** — `transform.py` mixer (bez Embeddera) w `_update_phi`; entangle; docs/BRIDGE.md | ✅ 2026-09 |
 
 ## Plan C — research (nie blokuje SE)
 
@@ -60,6 +61,7 @@ Doc B10: [B10_HANDOFF.md](B10_HANDOFF.md).
 - HSS / LSM / HolonFS — `archiwum/` (research, poza SE)
 - Chat UX EriAmo — poza MemoryAPI  
 - Mneme M4–M5 (auto-hub, prompt-only)
+- Bridge: checkpoint wag / tied attention jako opcja vs `transform.py`
 
 ## Zasady rozwoju
 

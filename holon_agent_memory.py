@@ -20,6 +20,7 @@ Kontrakt: ``MemoryAPI`` (remember / recall / digest / save) — patrz holon_memo
   python holon_agent_memory.py stats
   python holon_agent_memory.py crystallize [--dry-run] [--project P]
   python holon_agent_memory.py eval
+  python holon_agent_memory.py entangle --project P
 
 Użycie z kodu:
   from holon_memory_api import open_memory
@@ -306,6 +307,17 @@ class AgentMemory:
             best.is_work = best.is_work or is_work
             best.relevance = max(best.relevance, relevance)
             best.age = 0
+            # Lekki szum po merge (jak phi decoherence) + renorm — unika identycznych wektorów.
+            if best.embedding is not None:
+                try:
+                    arr = np.asarray(best.embedding, dtype=np.float32)
+                    noise = np.random.randn(*arr.shape).astype(np.float32) * 0.005
+                    arr = arr + noise
+                    arr /= (np.linalg.norm(arr) + 1e-8)
+                    best.embedding = arr.tolist()
+                    best._norm = -1.0
+                except Exception:
+                    pass
             try:
                 self.lex_index.update_item(best)
             except Exception:
@@ -339,6 +351,8 @@ class AgentMemory:
         """Hybryda zgodna z HoloMem: cosine + lexical (cfg.hybrid_lexical_weight).
 
         B2: przy dużym store scoring na kandydatach z inverted index.
+        Obca komora (vs kurek ``read_hammer``): kara, nie twarde odcięcie —
+        bardzo wysokie podobieństwo może się przebić.
         """
         if not self._started:
             self.start()
@@ -347,6 +361,7 @@ class AgentMemory:
         q_c = q[:cdim]
         lex_w = float(getattr(self.hm.cfg, "hybrid_lexical_weight", 0.18))
         pool = self._recall_pool(query)
+        current_project = self.read_hammer()
         scored: List[Tuple[float, Item]] = []
         for item in pool:
             e = item.emb_content(cdim)
@@ -359,6 +374,11 @@ class AgentMemory:
             if item.is_insight:
                 s += 0.04
             s *= 1.0 / (1.0 + 0.01 * min(item.age, 64))
+
+            if current_project and not self._match_project(item.content, current_project):
+                penalty = 0.2 if s > 0.9 else 0.6
+                s *= (1.0 - penalty)
+
             scored.append((s, item))
         scored.sort(key=lambda x: -x[0])
         return scored[:top_k]
@@ -1003,8 +1023,11 @@ class AgentMemory:
         promote_cluster_min: Optional[int] = None,
         max_active_work: Optional[int] = None,
         reinforce_phi: bool = True,
+        cross_project_merge: bool = False,
     ) -> dict:
         """Offline: utrwal stałe ścieżki pamięci (B9).
+
+        ``cross_project_merge=True`` pozwala scalać między komorami (domyślnie nie).
 
         1. Merge near-duplikatów (cosine+lex) → jedna ścieżka, większy cluster_size
         2. Promote epizodów z dużym cluster_size → fact
@@ -1038,7 +1061,7 @@ class AgentMemory:
         before = len(self.hm.store)
         candidates = [
             i for i in self.hm.store
-            if self._match_project(i.content, project)
+            if not project or self._match_project(i.content, project)
         ]
         # Greedy merge: sortuj durable/cluster malejąco, scal w lewo
         order = sorted(
@@ -1064,6 +1087,9 @@ class AgentMemory:
             while j < len(alive):
                 b = alive[j]
                 if b.id in removed_ids:
+                    j += 1
+                    continue
+                if not cross_project_merge and not self._same_chamber(a.content, b.content):
                     j += 1
                     continue
                 sim = self._path_similarity(a, b)
@@ -1160,6 +1186,7 @@ class AgentMemory:
             "demoted_samples": demoted_work[:20],
             "phi_reinforced": reinforced,
             "removed_ids": len(removed_ids),
+            "cross_project_merge": bool(cross_project_merge),
         }
         return report
 
@@ -2076,6 +2103,69 @@ class AgentMemory:
         }
 
 
+    @staticmethod
+    def _mean_pairwise_sim(embs: List[np.ndarray], cosine_fn) -> Optional[float]:
+        """Średnie cosine poza przekątną; None gdy <2 wektorów."""
+        n = len(embs)
+        if n < 2:
+            return None
+        total = 0.0
+        count = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                total += float(cosine_fn(embs[i], embs[j]))
+                count += 1
+        return total / count if count else None
+
+    def entanglement_score(self, project: str = "") -> dict:
+        """Aproksymacja splątania fact↔work (cross − średnia spójności wewnątrz).
+
+        Podobieństwa cosinusowe poza przekątną. Singleton (1 work / 1 fact)
+        nie zawyża ``within_*`` jedynką na diagonali — wtedy baza to tylko
+        druga grupa (albo samo ``cross``, gdy obie są singletonami).
+        """
+        if not self._started:
+            self.start()
+        items = [i for i in self.hm.store if self._match_project(i.content, project)]
+        facts = [i for i in items if i.is_fact and not i.is_work]
+        works = [i for i in items if i.is_work]
+        if not facts or not works:
+            return {"ok": False, "error": "brak faktów lub zadań (work) w projekcie"}
+        if len(facts) + len(works) < 2:
+            return {"ok": False, "error": "za mało elementów fact+work"}
+
+        cdim = self.hm.cfg.dim
+        cos = self.hm._cosine_sim
+        fact_embs = [i.emb_content(cdim) for i in facts]
+        work_embs = [i.emb_content(cdim) for i in works]
+
+        cross_vals = [
+            float(cos(fe, we)) for fe in fact_embs for we in work_embs
+        ]
+        cross = float(np.mean(cross_vals)) if cross_vals else 0.0
+        within_f = self._mean_pairwise_sim(fact_embs, cos)
+        within_w = self._mean_pairwise_sim(work_embs, cos)
+
+        bases = [x for x in (within_f, within_w) if x is not None]
+        if bases:
+            entanglement = cross - float(np.mean(bases))
+        else:
+            entanglement = cross
+
+        return {
+            "ok": True,
+            "project": project or None,
+            "items_total": len(items),
+            "facts_n": len(facts),
+            "work_n": len(works),
+            "cross_fact_work_sim": float(cross),
+            "within_facts_sim": None if within_f is None else float(within_f),
+            "within_work_sim": None if within_w is None else float(within_w),
+            "entanglement": float(entanglement),
+            "mutual_info_approx": max(0.0, float(entanglement)),
+        }
+
+
 def _configure_stdio_utf8() -> None:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -2093,7 +2183,9 @@ def _main(argv: Optional[List[str]] = None) -> int:
         "enter", "leave", "chambers", "separate",
         "boot", "crystallize", "watch-remember",
         "assist", "helper",  # Gemini/SE helper for agent (not chat)
-        "karmin-sync", "karmin-export", "karmin-import", "karmin-slot"])
+        "karmin-sync", "karmin-export", "karmin-import", "karmin-slot",
+        "entangle",
+    ])
     p.add_argument("text", nargs="?", default="",
                    help="treść (remember/set-work) lub zapytanie (recall)")
     p.add_argument("--fact", dest="as_fact", action="store_true")
@@ -2141,6 +2233,11 @@ def _main(argv: Optional[List[str]] = None) -> int:
                    help="crystallize: raport bez mutacji store")
     p.add_argument("--sim", type=float, default=None,
                    help="crystallize: próg similarity (domyślnie z Config)")
+    p.add_argument(
+        "--cross-project",
+        action="store_true",
+        help="crystallize: pozwól scalać między komorami (domyślnie wyłączone)",
+    )
     p.add_argument("--snapshot", default="holon_karmin_snapshot.json",
                    help="ścieżka snapshotu Karmin (export/import)")
     p.add_argument(
@@ -2387,9 +2484,16 @@ def _main(argv: Optional[List[str]] = None) -> int:
             dry_run=bool(args.dry_run),
             sim_threshold=args.sim,
             max_active_work=args.max_active,
+            cross_project_merge=bool(args.cross_project),
         )
         if not args.dry_run and not args.no_save:
             rep["save"] = am.save()
+        print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
+        return 0 if rep.get("ok") else 1
+
+    if args.cmd == "entangle":
+        import json as _json
+        rep = am.entanglement_score(args.project)
         print(_json.dumps(rep, indent=2, ensure_ascii=False, default=str))
         return 0 if rep.get("ok") else 1
 

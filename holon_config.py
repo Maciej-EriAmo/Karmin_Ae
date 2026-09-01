@@ -98,6 +98,13 @@ class Config:
     topic_repeat_threshold: int = 3
     use_prism: bool = True
     prism_cfg: object = None
+    # Bridge Transformer (transform.py) → mixer tokenów+sondy; Prism teleportuje na Φ.
+    # Agent: ON gdy dostępny; chat/flat: OFF. HOLON_USE_BRIDGE=0|1 nadpisuje.
+    use_bridge: bool = False
+    bridge_d_model: int = 64
+    bridge_n_heads: int = 4
+    bridge_n_layers: int = 2
+    bridge_calibrate_steps: int = 400
     rumination_generate_insight: bool = True
     insight_prompt_template: str = (
         "Jesteś EriAmo. Przeanalizuj swój błąd predykcji w architekturze Holon.\n"
@@ -158,6 +165,7 @@ class Config:
             handoff_max_chronicle=2,
             handoff_hybrid_since=True,
             remember_merge_sim=0.88,
+            use_bridge=True,
         )
         return replace(c, **overrides) if overrides else c
 
@@ -165,7 +173,7 @@ class Config:
     def flat(cls, base: Optional[str] = "agent", **overrides) -> "Config":
         """Ablacja: bez PrismRouter — prostszy tor (lab / porównania)."""
         c = cls.agent() if base == "agent" else cls.chat()
-        c = replace(c, profile="flat", use_prism=False)
+        c = replace(c, profile="flat", use_prism=False, use_bridge=False)
         return replace(c, **overrides) if overrides else c
 
     @classmethod
@@ -196,6 +204,11 @@ class Config:
             ).strip()
         if os.environ.get("HOLON_LLM_API_KEY"):
             c.llm_api_key = os.environ["HOLON_LLM_API_KEY"].strip()
+        env_br = (os.environ.get("HOLON_USE_BRIDGE") or "").strip().lower()
+        if env_br in ("0", "false", "off", "no"):
+            c.use_bridge = False
+        elif env_br in ("1", "true", "on", "yes"):
+            c.use_bridge = True
         return c
 
     @classmethod

@@ -77,6 +77,11 @@ SAFE_OVERRIDE_KEYS = frozenset(
         "handoff_hybrid_since",
         "remember_merge_sim",
         "use_prism",
+        "use_bridge",
+        "bridge_d_model",
+        "bridge_n_heads",
+        "bridge_n_layers",
+        "bridge_calibrate_steps",
         "llm_backend",
         "llm_base_url",
         "llm_model",
@@ -491,6 +496,11 @@ def apply_env_llm(cfg: Config) -> Config:
     if os.environ.get("HOLON_HELPER_ENABLED"):
         raw = os.environ["HOLON_HELPER_ENABLED"].strip().lower()
         cfg.helper_enabled = raw not in ("0", "false", "no", "off")
+    env_br = (os.environ.get("HOLON_USE_BRIDGE") or "").strip().lower()
+    if env_br in ("0", "false", "off", "no"):
+        cfg.use_bridge = False
+    elif env_br in ("1", "true", "on", "yes"):
+        cfg.use_bridge = True
     return cfg
 
 

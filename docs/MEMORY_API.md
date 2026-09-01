@@ -17,10 +17,11 @@ mem: MemoryAPI = open_memory("holon_memory.json", profile="agent")
 | `handoff_md(..., out_path=None)` | **B7** ten sam handoff jako Markdown (+ opcjonalny plik) |
 | `set_work(content, project, max_active=None)` | work + demotion; domyślnie **1** aktywny (B10) |
 | `close(work=…, fact=…, project=…)` | **B10** atomowe domknięcie sesji + last_project |
-| `crystallize(project, dry_run=…)` | **B9** offline: merge near-dup, promote cluster→fact, demote work, wzmocnij Φ |
+| `crystallize(project, dry_run=…, cross_project_merge=False)` | **B9** offline: merge near-dup (domyślnie **nie** między komorami), promote, demote work, Φ |
+| `entanglement_score(project)` | metryka fact↔work (pairwise poza przekątną) |
 | `on_remember(cb)` | **B4** hook po remember (add/merge) |
 | `save()` | JSON + embedder dict (KuRz albo hash fallback) |
-| `stats()` | turns, store, facts, work, profile, lex_index, … |
+| `stats()` | turns, store, facts, work, profile, lex_index, bridge_mode/status, … |
 
 Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 
@@ -35,13 +36,15 @@ Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 
 ## Profile (`holon_config.Config`)
 
-| Fabryka | store_decay | prune max | prism | Użycie |
-|---------|-------------|-----------|-------|--------|
-| `Config.chat()` | 336 h | 120 | on | `Session`, `main.py` |
-| `Config.agent()` | 2160 h | 400 | on | AgentMemory |
-| `Config.flat()` | jak agent | … | **off** | ablacja / lab |
-| `Config.from_env()` | `HOLON_PROFILE` | | | env override |
-| `Config.from_settings()` | `holon_settings.json` + env | | | **konfigurator** CLI/GUI |
+| Fabryka | store_decay | prune max | prism | bridge | Użycie |
+|---------|-------------|-----------|-------|--------|--------|
+| `Config.chat()` | 336 h | 120 | on | off | `Session`, `main.py` |
+| `Config.agent()` | 2160 h | 400 | on | **on** | AgentMemory / boot |
+| `Config.flat()` | jak agent | … | **off** | **off** | ablacja / lab |
+| `Config.from_env()` | `HOLON_PROFILE` · `HOLON_USE_BRIDGE` | | | | env override |
+| `Config.from_settings()` | `holon_settings.json` + env | | | | **konfigurator** CLI/GUI |
+
+Bridge (agent): mixer tokenów+sondy **bez** Embeddera, potem Prism → Φ. Doc: [BRIDGE.md](BRIDGE.md).
 
 ## CLI
 
@@ -53,9 +56,11 @@ python holon_agent_memory.py digest [--project P]
 python holon_agent_memory.py remember "…" --fact|--work
 python holon_agent_memory.py set-work "…" --project P [--max-active 1]
 python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P
-python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] [--max-active 1]
+python holon_agent_memory.py crystallize [--project P] [--dry-run] [--sim 0.88] [--max-active 1] [--cross-project]
+python holon_agent_memory.py entangle [--project P]
 python holon_agent_memory.py recall "…" [--project P]
 python holon_agent_memory.py ablation
+python scripts/bench_bridge_vs_prism.py [--steps 600]
 python holon_agent_memory.py watch-remember --inbox remember_inbox.jsonl [--once]
 python holon_agent_memory.py assist [--task orient|draft-close|hygiene] [--ask "…"] [--project P]
 python -m holon_helper [--task …] [--project P]

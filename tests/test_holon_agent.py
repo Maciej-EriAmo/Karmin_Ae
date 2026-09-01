@@ -77,6 +77,9 @@ class TestConfigProfiles(unittest.TestCase):
         self.assertEqual(c.profile, "chat")
         self.assertGreater(a.store_decay_hours, c.store_decay_hours)
         self.assertFalse(Config.flat().use_prism)
+        self.assertTrue(a.use_bridge)
+        self.assertFalse(c.use_bridge)
+        self.assertFalse(Config.flat().use_bridge)
         # SE default = krotki handoff, 1 work
         self.assertEqual(a.handoff_max_work, 1)
         self.assertLessEqual(a.handoff_max_facts, 4)
@@ -346,6 +349,77 @@ class TestHolonItemInject(unittest.TestCase):
             self.assertEqual(len(found), 1)
             self.assertTrue(hasattr(found[0], "emb_np"))
             self.assertGreater(float(np.linalg.norm(found[0].emb_np())), 0.0)
+
+
+class TestMemoryPhysics(unittest.TestCase):
+    def test_merge_noise_keeps_unit_norm(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            a = am.remember("[Holon] ten sam fakt o freelist slab", kind="fact")
+            b = am.remember("[Holon] ten sam fakt o freelist slab", kind="fact")
+            self.assertEqual(a.id, b.id)
+            n = float(np.linalg.norm(np.asarray(b.embedding, dtype=np.float32)))
+            self.assertAlmostEqual(n, 1.0, places=5)
+
+    def test_recall_penalizes_foreign_chamber(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            am.remember("[Holon] unikalny token xyzzyholon freelist", kind="fact")
+            am.remember("[Karmin_Sheet] unikalny token xyzzyholon freelist", kind="fact")
+            am.touch_last_project("Holon")
+            ranked = am.recall("xyzzyholon freelist", top_k=5)
+            self.assertGreaterEqual(len(ranked), 2)
+            by_tag = {
+                am._project_tag(it.content): score for score, it in ranked
+            }
+            self.assertIn("Holon", by_tag)
+            self.assertIn("Karmin_Sheet", by_tag)
+            self.assertGreater(by_tag["Holon"], by_tag["Karmin_Sheet"])
+
+    def test_crystallize_skips_cross_chamber_unless_flag(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            am.remember("[Alpha] wspólny temat slab freelist path", kind="fact")
+            am.remember("[Beta] wspólny temat slab freelist path", kind="fact")
+            before = len(am.hm.store)
+            rep = am.crystallize(project="", dry_run=False, cross_project_merge=False)
+            self.assertTrue(rep.get("ok"))
+            self.assertEqual(len(am.hm.store), before)
+            tagged = [
+                i for i in am.hm.store
+                if am._project_tag(i.content) in ("Alpha", "Beta")
+            ]
+            self.assertEqual(len(tagged), 2)
+
+    def test_entanglement_singleton_work_ok(self):
+        with tempfile.TemporaryDirectory() as td:
+            am = AgentMemory.open(
+                memory_path=str(Path(td) / "m.json"),
+                profile="agent",
+                use_settings=False,
+            )
+            am.remember("[Holon] fakt A o protokole SE boot", kind="fact")
+            am.remember("[Holon] fakt B o komorach prefix tag", kind="fact")
+            am.remember("[Holon] fakt C o crystallize merge", kind="fact")
+            am.remember("[Holon] work: dopracuj metrykę entangle", kind="work")
+            rep = am.entanglement_score("Holon")
+            self.assertTrue(rep.get("ok"), rep)
+            self.assertEqual(rep["work_n"], 1)
+            self.assertIsNone(rep["within_work_sim"])
+            self.assertIsInstance(rep["within_facts_sim"], float)
+            self.assertIsInstance(rep["entanglement"], float)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ docs/
   AGENT_WORKFLOW.md      ← jak AGENT ma pracować z pamięcią
   MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
   B10_HANDOFF.md         ← B10 projection + B13 komory (enter/leave)
-  ARCHITECTURE.md        ← moduły, przepływ, profile
+  ARCHITECTURE.md        ← moduły, przepływ, profile, tor pamięci
+  BRIDGE.md              ← Bridge Transformer → Prism → Φ (bez Embeddera)
   AII_PROTO_EMOTIONS.md  ← proto-emocje AII (kod + grupa docelowa)
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu + helper SE (holon_helper)
@@ -46,12 +47,14 @@ python agent_boot.py --since 24h --compact --no-banner
 python karmin_app.py --status
 python holon_agent_memory.py assist --project Holon
 python holon_agent_memory.py crystallize --project Holon
+python holon_agent_memory.py entangle --project Holon
 python holon_agent_memory.py eval
+python scripts/bench_bridge_vs_prism.py --steps 600
 python holon_configure.py help
 python -m holon_mneme --repl
 ```
 
-Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · helper LLM: [LLM_SLOT.md](LLM_SLOT.md) · configure: [CONFIGURE.md](CONFIGURE.md).
+Workflow agenta: [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) · helper LLM: [LLM_SLOT.md](LLM_SLOT.md) · configure: [CONFIGURE.md](CONFIGURE.md) · Bridge: [BRIDGE.md](BRIDGE.md) · architektura pamięci: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Plan B / B+ (SE surface) — status
 
