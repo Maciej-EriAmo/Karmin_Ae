@@ -70,6 +70,65 @@ def load_bridge_module(path: Optional[str | Path] = None):
     )
 
 
+# ── energia Bridge → importance Prism ───────────────────────────────────────
+
+def bridge_energy_importance(
+    base_importance: float,
+    tracer: Sequence[float] | np.ndarray,
+    importance_range: Tuple[float, float] = (0.8, 2.6),
+) -> Tuple[float, Dict[str, float]]:
+    """Z sondy energii (tracer) wylicz importance dla Prism.
+
+    Bridge błyszczy na układach wielowymiarowych (rozrzut energii), nie na
+    płaskim Softmaxie. Tu: concentration + spread + top-mass → boost w
+    ``importance_range``, żeby ``p[lv]`` reagowało na strukturę energii,
+    a nie tylko na skalar AII/recalled.
+    """
+    lo, hi = float(importance_range[0]), float(importance_range[1])
+    if hi <= lo:
+        hi = lo + 1e-6
+    span = hi - lo
+    base = float(base_importance)
+    t = np.asarray(tracer, dtype=np.float64).ravel()
+    t = np.clip(t, 0.0, None)
+    meta: Dict[str, float] = {
+        "ok": 0.0,
+        "concentration": 0.0,
+        "spread": 0.0,
+        "top_mass": 0.0,
+        "structure": 0.0,
+        "boost": 0.0,
+        "imp_in": base,
+        "imp_out": base,
+    }
+    if t.size < 2 or float(t.sum()) < 1e-12:
+        return base, meta
+    w = t / (t.sum() + 1e-12)
+    ent = float(-(w * np.log(w + 1e-12)).sum())
+    max_ent = float(np.log(len(w)))
+    concentration = 1.0 - ent / (max_ent + 1e-12)
+    spread = float(t.std() / (t.mean() + 1e-12))
+    k = max(1, len(w) // 5)
+    top_mass = float(np.sort(w)[-k:].sum())
+    structure = float(np.tanh(spread / 1.5)) * (0.4 + 0.6 * concentration)
+    # top_mass ponad równomierny udział
+    uniform = 1.0 / float(len(w))
+    peak = (top_mass - uniform) * float(len(w)) / (float(len(w) - 1) + 1e-12)
+    boost = 0.55 * structure + 0.45 * peak
+    boost = float(np.clip(boost, -0.35, 0.85))
+    imp = float(np.clip(base + boost * span * 0.55, lo, hi))
+    meta.update({
+        "ok": 1.0,
+        "concentration": float(concentration),
+        "spread": float(spread),
+        "top_mass": float(top_mass),
+        "structure": float(structure),
+        "boost": float(boost),
+        "imp_out": imp,
+    })
+    return imp, meta
+
+
 # ── typy wyjścia ────────────────────────────────────────────────────────────
 
 @dataclass

@@ -11,7 +11,7 @@ docs/
   MEMORY_API.md          ← remember / recall / digest / handoff / set-work / close
   B10_HANDOFF.md         ← B10 projection + B13 komory (enter/leave)
   ARCHITECTURE.md        ← moduły, przepływ, profile, tor pamięci
-  BRIDGE.md              ← Bridge Transformer → Prism → Φ (bez Embeddera)
+  BRIDGE.md              ← Bridge → energia→p → Prism → Φ (bez Embeddera w mixie)
   AII_PROTO_EMOTIONS.md  ← proto-emocje AII (kod + grupa docelowa)
   ROADMAP.md             ← plan rozwoju (wykonany + backlog)
   LLM_SLOT.md            ← wszczep lokalnego modelu + helper SE (holon_helper)

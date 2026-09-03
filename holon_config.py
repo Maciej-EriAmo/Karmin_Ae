@@ -105,6 +105,9 @@ class Config:
     bridge_n_heads: int = 4
     bridge_n_layers: int = 2
     bridge_calibrate_steps: int = 400
+    # Gdy True: sonda Bridge (tracer) moduluje importance → Prism p[lv]
+    # (domknięcie pętli energia→routing; agent ON, chat/flat OFF).
+    bridge_energy_to_importance: bool = False
     rumination_generate_insight: bool = True
     insight_prompt_template: str = (
         "Jesteś EriAmo. Przeanalizuj swój błąd predykcji w architekturze Holon.\n"
@@ -166,6 +169,7 @@ class Config:
             handoff_hybrid_since=True,
             remember_merge_sim=0.88,
             use_bridge=True,
+            bridge_energy_to_importance=True,
         )
         return replace(c, **overrides) if overrides else c
 
@@ -173,7 +177,13 @@ class Config:
     def flat(cls, base: Optional[str] = "agent", **overrides) -> "Config":
         """Ablacja: bez PrismRouter — prostszy tor (lab / porównania)."""
         c = cls.agent() if base == "agent" else cls.chat()
-        c = replace(c, profile="flat", use_prism=False, use_bridge=False)
+        c = replace(
+            c,
+            profile="flat",
+            use_prism=False,
+            use_bridge=False,
+            bridge_energy_to_importance=False,
+        )
         return replace(c, **overrides) if overrides else c
 
     @classmethod

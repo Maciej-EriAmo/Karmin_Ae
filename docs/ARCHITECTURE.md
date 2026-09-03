@@ -1,6 +1,6 @@
 # Architektura Holon (zaawansowana, aktualna)
 
-**Wersja docs:** 2026-09-01 · **Kod:** v5.13+ (B10 · komory · Bridge→Prism · entangle)  
+**Wersja docs:** 2026-09-03 · **Kod:** v5.13+ (B10 · komory · Bridge→Prism · energia→p · entangle)  
 **Autor:** Maciej Mazur  
 
 > Starszy plik `holon_architecture.md` jest legacy; **ten dokument jest kanonem**.
@@ -20,11 +20,12 @@
 │   Prompts: pastness, temporal, STAN WEWNĘTRZNY (tło)        │
 ├────────────────────────────────────────────────────────────┤
 │  Representation                                             │
-│   Embedder (KuRz|hash + time) → Item store                  │
+│   Embedder (KuRz|hash + time) → Item store / recall         │
 │   Bridge Transformer (agent ON) — mixer tokenów+sondy       │
 │     ↳ bez Embeddera.encode; wejście = gotowe wektory Item   │
+│     ↳ bridge_energy_importance → importance → Prism p[lv]   │
 │   PrismRouter — teleport na poziomy Φ (wagi + faza)         │
-│   Ablation: Config.flat() → use_prism=False, use_bridge=False│
+│   Ablation: flat() → prism/bridge/energy→p OFF              │
 ├────────────────────────────────────────────────────────────┤
 │  Persistence                                                │
 │   %LOCALAPPDATA%\Karmin_Ae\holon_memory.json (HOLON_DATA_HOME)│
@@ -40,18 +41,27 @@
 
 ## Jak działa pamięć (tor SE)
 
-1. **Zapis (`remember`)** — treść dostaje prefiks komory `[P]`; Embedder → wektor; merge tylko **w tej samej komorze**; lekki szum+renorm po merge.  
-2. **Store** — lista `Item` (fact/work/…) w JSON poza repo.  
-3. **Recall** — cosine + lexical; obca komora vs kurek (`last_project`) dostaje **karę**, nie twarde odcięcie.  
-4. **Update Φ (`_update_phi`)** — z aktywnego okna budowany jest pattern:  
+Dwa tory, nie mylić:
+
+| Tor | Ścieżka | Do czego |
+|-----|---------|----------|
+| **Store / SE surface** | Embedder → Item → recall / handoff / Mneme | treść, komory, boot |
+| **Reprezentacja Φ** | Bridge (+sonda) → importance → Prism → Φ | uczący się stan holograficzny |
+
+1. **Zapis (`remember`)** — prefiks komory `[P]`; Embedder → wektor; merge tylko **w tej samej komorze**; szum+renorm po merge.  
+2. **Store** — lista `Item` (fact/work/…) w JSON poza repo; 1 work na komorę.  
+3. **Recall** — cosine + lexical + kara obcej komory; **nie** woła Bridge (to tor Embeddera).  
+4. **Update Φ (`_update_phi`)** — z aktywnego okna:  
    - klasycznie: ważona suma embeddingów;  
-   - **agent + `use_bridge`**: Itemy jako tokeny + sonda (relevance/age) → **Bridge** (Lorentzian attention z `transform.py`) → wektor;  
-   - **Prism** rozdziela ten wektor na `phi_levels` (miękkie wagi + przesunięcie fazy).  
-5. **Handoff / boot** — projekcja komory: 1 work + facts z `[P]`, `recommended_actions`, surfaces agent/human.  
-6. **Crystallize** — offline merge ścieżek (domyślnie **bez** cross-chamber; `--cross-project` tylko świadomie).  
+   - **agent + `use_bridge`**: tokeny + sonda → **Bridge** (`transform.py`) → `pattern`;  
+   - **`bridge_energy_to_importance`**: struktura sondy (concentration / spread / top-mass) → `importance` → Prism **`p[lv]`** słyszy układ wielowymiarowy;  
+   - **Prism** rozdziela `pattern` na `phi_levels` (miękkie wagi + faza).  
+5. **Handoff / boot** — projekcja komory: 1 work + facts z `[P]`, `recommended_actions`, surfaces.  
+6. **Crystallize** — offline merge (domyślnie bez cross-chamber).  
 7. **Entangle** — metryka fact↔work (pairwise poza przekątną).
 
-Szczegóły Bridge: [BRIDGE.md](BRIDGE.md). Komory: [B10_HANDOFF.md](B10_HANDOFF.md) · [AGENTS.md](../AGENTS.md).
+Bridge błyszczy na **wielowymiarowej energii** okna (wiele komór / peaki), nie na płaskim Softmaxie — szczegóły: [BRIDGE.md](BRIDGE.md).  
+Komory: [B10_HANDOFF.md](B10_HANDOFF.md) · [AGENTS.md](../AGENTS.md).
 
 ### Proto-emocje (AII) — skrót architektoniczny
 
@@ -121,11 +131,11 @@ Session(Config.chat)
 
 ## Profile a Bridge / Prism
 
-| Profil | `use_prism` | `use_bridge` | Uwagi |
-|--------|-------------|--------------|--------|
-| `Config.agent()` | on | **on** | SE / Grok; Bridge wymaga torch + `transform.py` |
-| `Config.chat()` | on | off | nie spowalnia czatu kalibracją |
-| `Config.flat()` | **off** | **off** | ablacja |
+| Profil | `use_prism` | `use_bridge` | `energy→p` | Uwagi |
+|--------|-------------|--------------|------------|--------|
+| `Config.agent()` | on | **on** | **on** | SE / Grok; Bridge + sonda→importance |
+| `Config.chat()` | on | off | off | bez kalibracji Bridge |
+| `Config.flat()` | **off** | **off** | off | ablacja |
 
 `HOLON_USE_BRIDGE=0|1` nadpisuje. Brak Bridge → cichy fallback na klasyczny pattern (status `unavailable:…` w `stats()`).
 

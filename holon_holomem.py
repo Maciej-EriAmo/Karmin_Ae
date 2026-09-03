@@ -82,6 +82,7 @@ class HoloMem:
         self._bridge_calibrated = False
         if bool(getattr(self.cfg, "use_bridge", False)):
             self._bridge_status = "pending"
+        self._last_bridge_energy: dict = {}
 
     def _ensure_bridge(self) -> bool:
         """Leniwie podłącz ``transform.py`` + krótka kalibracja. False = tor klasyczny."""
@@ -186,12 +187,17 @@ class HoloMem:
         HoloMem._BRIDGE_WEIGHT_CACHE[cache_key] = {
             k: v.detach().cpu().clone() for k, v in model.state_dict().items()
         }
-    def _bridge_mix_active(self, active: list, emotion_w: float) -> Optional[np.ndarray]:
-        """Złóż tokeny z Itemów (bez Embeddera.encode) → Bridge → wektor tdim."""
+    def _bridge_mix_active(
+        self, active: list, emotion_w: float
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Złóż tokeny z Itemów (bez Embeddera.encode) → Bridge → (pattern, tracer).
+
+        Zwraca ``(pattern[tdim], tracer[N])`` albo ``(None, None)`` przy fallbacku.
+        """
         if not self._ensure_bridge() or self.bridge_stack is None:
-            return None
+            return None, None
         if len(active) < 2:
-            return None
+            return None, None
         import torch
 
         d_model = int(self.bridge_stack.d_model)
@@ -221,14 +227,15 @@ class HoloMem:
         try:
             fwd = self.bridge_stack.forward_tokens(x, tracer, pool="energy")
         except Exception:
-            return None
+            return None, None
         pat = np.asarray(fwd.pattern, dtype=np.float32).reshape(-1)
         if len(pat) < tdim:
             pat = np.concatenate([pat, np.zeros(tdim - len(pat), dtype=np.float32)])
         else:
             pat = pat[:tdim]
         n = float(np.linalg.norm(pat)) + 1e-8
-        return (pat / n).astype(np.float32)
+        tr_np = np.asarray(tracers, dtype=np.float32)
+        return (pat / n).astype(np.float32), tr_np
 
     # ── Session ────────────────────────────────────────────────────────────
 
@@ -476,13 +483,31 @@ class HoloMem:
         pattern /= n
 
         # Bridge (gdy ON): mixer tokenów+sondy bez Embeddera → wejście do Prism.
+        # Opcjonalnie: struktura energii (tracer) moduluje importance → p[lv].
+        bridge_tracer = None
+        self._last_bridge_energy = {}
         if bool(getattr(self.cfg, "use_bridge", False)):
-            mixed = self._bridge_mix_active(active, emotion_w)
+            mixed, bridge_tracer = self._bridge_mix_active(active, emotion_w)
             if mixed is not None:
                 pattern = mixed
 
         recalled_count = sum(1 for i in window if i.recalled)
         importance     = emotion_w * (1.0 + 0.3 * recalled_count)
+        if (
+            bridge_tracer is not None
+            and bool(getattr(self.cfg, "bridge_energy_to_importance", False))
+            and self.prism_router is not None
+        ):
+            try:
+                from holon_bridge import bridge_energy_importance
+
+                ir = getattr(self.prism_router.cfg, "importance_range", (0.8, 2.6))
+                importance, emeta = bridge_energy_importance(
+                    importance, bridge_tracer, importance_range=ir
+                )
+                self._last_bridge_energy = dict(emeta)
+            except Exception:
+                self._last_bridge_energy = {"ok": 0.0, "error": 1.0}
 
         def _norm_v(v):
             nv = np.linalg.norm(v)
@@ -1058,6 +1083,10 @@ class HoloMem:
             "prism_mode":    self.cfg.use_prism,
             "bridge_mode":   bool(getattr(self.cfg, "use_bridge", False)),
             "bridge_status": getattr(self, "_bridge_status", "off"),
+            "bridge_energy_to_importance": bool(
+                getattr(self.cfg, "bridge_energy_to_importance", False)
+            ),
+            "bridge_energy": dict(getattr(self, "_last_bridge_energy", {}) or {}),
         }
 
     def reset(self):

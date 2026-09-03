@@ -21,7 +21,7 @@ mem: MemoryAPI = open_memory("holon_memory.json", profile="agent")
 | `entanglement_score(project)` | metryka fact↔work (pairwise poza przekątną) |
 | `on_remember(cb)` | **B4** hook po remember (add/merge) |
 | `save()` | JSON + embedder dict (KuRz albo hash fallback) |
-| `stats()` | turns, store, facts, work, profile, lex_index, bridge_mode/status, … |
+| `stats()` | turns, store, facts, work, profile, lex_index, `bridge_mode`/`bridge_status`, `bridge_energy_to_importance`, `bridge_energy` (po Φ), … |
 
 Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 
@@ -36,15 +36,17 @@ Implementacja referencyjna: `AgentMemory` (`holon_agent_memory.py`).
 
 ## Profile (`holon_config.Config`)
 
-| Fabryka | store_decay | prune max | prism | bridge | Użycie |
-|---------|-------------|-----------|-------|--------|--------|
-| `Config.chat()` | 336 h | 120 | on | off | `Session`, `main.py` |
-| `Config.agent()` | 2160 h | 400 | on | **on** | AgentMemory / boot |
-| `Config.flat()` | jak agent | … | **off** | **off** | ablacja / lab |
-| `Config.from_env()` | `HOLON_PROFILE` · `HOLON_USE_BRIDGE` | | | | env override |
-| `Config.from_settings()` | `holon_settings.json` + env | | | | **konfigurator** CLI/GUI |
+| Fabryka | store_decay | prune max | prism | bridge | energy→p | Użycie |
+|---------|-------------|-----------|-------|--------|----------|--------|
+| `Config.chat()` | 336 h | 120 | on | off | off | `Session`, `main.py` |
+| `Config.agent()` | 2160 h | 400 | on | **on** | **on** | AgentMemory / boot |
+| `Config.flat()` | jak agent | … | **off** | **off** | off | ablacja / lab |
+| `Config.from_env()` | `HOLON_PROFILE` · `HOLON_USE_BRIDGE` | | | | | env override |
+| `Config.from_settings()` | `holon_settings.json` + env | | | | | **konfigurator** CLI/GUI |
 
-Bridge (agent): mixer tokenów+sondy **bez** Embeddera, potem Prism → Φ. Doc: [BRIDGE.md](BRIDGE.md).
+**Bridge (agent):** mixer tokenów+sondy **bez** Embeddera → `pattern`; sonda moduluje `importance` (`bridge_energy_to_importance`) → Prism `p[lv]` → Φ.  
+**Recall/handoff** zostają na Embedderze + komorach — to osobny tor od Φ.  
+Doc: [BRIDGE.md](BRIDGE.md) · [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## CLI
 

@@ -13,7 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from holon_bridge import BridgeStack, bridge_home_turf_quick, load_bridge_module, prism_wins_demo
+from holon_bridge import (
+    BridgeStack,
+    bridge_energy_importance,
+    bridge_home_turf_quick,
+    load_bridge_module,
+    prism_wins_demo,
+)
 
 
 def _bridge_available() -> bool:
@@ -58,6 +64,40 @@ class TestPrismWins(unittest.TestCase):
         self.assertTrue(rep["prism_wins"], rep)
         self.assertGreater(rep["prism_phase_spread_high"], 1e-4)
         self.assertGreater(rep["prism_entropy_high"], rep["flat_entropy_high"])
+
+
+class TestBridgeEnergyImportance(unittest.TestCase):
+    def test_multi_structured_boosts_over_flat(self):
+        lo, hi = 0.8, 2.6
+        base = 1.0
+        flat = np.ones(16, dtype=np.float64)
+        # wielowymiarowy: kilka ostrych pików energii (Bridge turf)
+        multi = np.array(
+            [3.0, 0.01, 0.01, 2.5, 0.01, 0.02, 2.0] + [0.01] * 9,
+            dtype=np.float64,
+        )
+        imp_flat, m_flat = bridge_energy_importance(base, flat, (lo, hi))
+        imp_multi, m_multi = bridge_energy_importance(base, multi, (lo, hi))
+        self.assertGreater(m_multi["ok"], 0.5)
+        self.assertGreater(imp_multi, imp_flat + 0.1)
+        self.assertGreater(m_multi["structure"], m_flat["structure"])
+        self.assertGreaterEqual(imp_multi, lo)
+        self.assertLessEqual(imp_multi, hi)
+
+    def test_routes_prism_p_differently(self):
+        from holon_holography import PrismRouter, PrismConfig
+
+        pr = PrismRouter(PrismConfig(num_levels=3))
+        pat = np.random.randn(64).astype(np.float32)
+        pat /= np.linalg.norm(pat) + 1e-8
+        flat = np.ones(20)
+        multi = np.linspace(0.01, 3.0, 20) ** 2
+        imp_f, _ = bridge_energy_importance(1.0, flat)
+        imp_m, _ = bridge_energy_importance(1.0, multi)
+        _, p_f, _ = pr.route(imp_f, pat)
+        _, p_m, _ = pr.route(imp_m, pat)
+        tv = 0.5 * float(np.abs(np.asarray(p_f) - np.asarray(p_m)).sum())
+        self.assertGreater(tv, 0.01, f"tv={tv} p_f={p_f} p_m={p_m}")
 
 
 @unittest.skipUnless(_bridge_available(), "transform.py Bridge niedostępny")
@@ -107,6 +147,10 @@ class TestBridgeEnabledInHoloMem(unittest.TestCase):
             st = hm.stats()
             self.assertTrue(st.get("bridge_mode"))
             self.assertEqual(st.get("bridge_status"), "on")
+            self.assertTrue(st.get("bridge_energy_to_importance"))
+            be = st.get("bridge_energy") or {}
+            self.assertGreater(float(be.get("ok", 0)), 0.5, be)
+            self.assertIn("imp_out", be)
 
 
 if __name__ == "__main__":

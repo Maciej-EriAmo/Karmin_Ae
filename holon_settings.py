@@ -82,6 +82,7 @@ SAFE_OVERRIDE_KEYS = frozenset(
         "bridge_n_heads",
         "bridge_n_layers",
         "bridge_calibrate_steps",
+        "bridge_energy_to_importance",
         "llm_backend",
         "llm_base_url",
         "llm_model",

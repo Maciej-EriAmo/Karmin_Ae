@@ -73,7 +73,7 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **close** | B10 — koniec sesji work+fact | `python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P` |
 | **crystallize** | B9 — stałe ścieżki (merge/Φ; `--cross-project` świadomie) | `python holon_agent_memory.py crystallize [--project Holon]` |
 | **entangle** | metryka fact↔work w komorze | `python holon_agent_memory.py entangle --project Holon` |
-| **Bridge→Prism** | mixer tokenów (agent ON) → teleport Φ; bez Embeddera | docs: [docs/BRIDGE.md](docs/BRIDGE.md) · `HOLON_USE_BRIDGE=0` wyłącza |
+| **Bridge→Prism** | mixer + sonda → Φ; `energy→p` (agent ON); bez Embeddera w mixie | [docs/BRIDGE.md](docs/BRIDGE.md) · `HOLON_USE_BRIDGE=0` · ablacja: `bridge_energy_to_importance=false` |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |
 | **eval** | regresja | `python holon_agent_memory.py eval` |
 | **ablation** | B6 flat vs prism | `python holon_agent_memory.py ablation` |
