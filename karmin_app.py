@@ -275,12 +275,19 @@ def open_am(project: str = ""):
 def surface_status(project: str = "") -> Dict[str, Any]:
     """Jedna paczka stanu dla GUI / CLI status."""
     from holon_agent_memory import AgentMemory
-    from holon_settings import load_config, load_settings
+    from holon_settings import _probe_bridge_status, load_config, load_settings
 
     s = load_settings()
     cfg = load_config(settings=s)
-    am = AgentMemory.open(memory_path=str(s.get("memory_path") or "holon_memory.json"))
+    mem_path = str(s.get("memory_path") or "holon_memory.json")
+    am = AgentMemory.open(memory_path=mem_path)
     st = am.stats()
+    # bridge_status jest leniwy per-proces (zawsze "pending" bez realnej tury Φ) —
+    # sonda bez kalibracji (tania) daje wiarygodny odczyt zamiast mylącego pending.
+    # Uwaga: liczy się config REALNIE użyty przez am.hm (profil agent), nie `cfg`
+    # powyżej (wyświetlany osobno, bywa innym profilem np. chat).
+    if bool(getattr(am.hm.cfg, "use_bridge", False)):
+        st["bridge_status"] = _probe_bridge_status(Path(mem_path), am.hm.cfg)
     proj = (project or s.get("default_project") or am.read_last_project() or "").strip()
     handoff = am.handoff(
         project=proj,
@@ -297,7 +304,7 @@ def surface_status(project: str = "") -> Dict[str, Any]:
         for f in (handoff.get("key_facts") or [])[:4]
     ]
     actions = handoff.get("recommended_actions") or []
-    doc = doctor(root=ROOT)
+    doc = doctor(root=ROOT, bridge_status=st.get("bridge_status"))
     return {
         "project": proj,
         "stats": st,
@@ -568,7 +575,7 @@ def run_line(
             }
 
         if cmd == "doctor":
-            rep = doctor(root=ROOT)
+            rep = doctor(root=ROOT, probe_bridge=True)
             lines = [f"score={rep.get('score')}% ok={rep.get('ok')}"]
             for c in rep.get("checks") or []:
                 lines.append(f"{'OK' if c.get('ok') else '!!'} {c.get('name')}: {c.get('detail')}")
@@ -955,7 +962,7 @@ def run_gui(lang: Optional[str] = None) -> int:
             messagebox.showerror("Karmin_Ae", str(e))
 
     def do_doctor() -> None:
-        rep = doctor(root=ROOT)
+        rep = doctor(root=ROOT, probe_bridge=True)
         lines = [f"score={rep['score']}% ok={rep['ok']}", ""]
         for c in rep["checks"]:
             lines.append(f"{'OK' if c['ok'] else '!!'} {c['name']}: {c['detail']}")

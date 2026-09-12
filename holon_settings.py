@@ -601,12 +601,48 @@ def export_env_lines(settings: Optional[Dict[str, Any]] = None) -> List[str]:
     return lines
 
 
+def _probe_bridge_status(mem_path: Path, cfg: Config) -> str:
+    """Otwórz pamięć na chwilę i wymuś leniwą inicjalizację Bridge (``_ensure_bridge``).
+
+    Bez tego ``bridge_status`` w świeżym procesie zawsze pokazuje ``pending``
+    (lazy init odpala się dopiero przy pierwszej turze Φ z >=2 aktywnymi
+    itemami) — myląco sugerując, że holografia nie działa, gdy w rzeczywistości
+    po prostu nie została jeszcze wywołana w tym procesie.
+    """
+    try:
+        import dataclasses
+
+        from holon_agent_memory import AgentMemory
+
+        # steps=0: sam sygnał "czy Bridge się ładuje" nie wymaga kalibracji wag
+        # (~400 kroków treningu = kilka sekund) — to tylko probe gotowości.
+        probe_cfg = dataclasses.replace(cfg, bridge_calibrate_steps=0)
+        am = AgentMemory.open(
+            memory_path=str(mem_path), profile=probe_cfg.profile or "agent",
+            cfg=probe_cfg, use_settings=False,
+        )
+        am.hm._ensure_bridge()
+        return str(am.hm._bridge_status)
+    except Exception as e:
+        return f"probe_error:{type(e).__name__}"
+
+
 def doctor(
     *,
     root: Optional[Path] = None,
     settings_path: Optional[str | Path] = None,
+    probe_bridge: bool = False,
+    bridge_status: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Diagnostyka setupu — checklista „lokalna pamięć SE gotowa”."""
+    """Diagnostyka setupu — checklista „lokalna pamięć SE gotowa”.
+
+    ``probe_bridge=True`` wymusza realne sprawdzenie Bridge→Prism
+    (``_ensure_bridge``) zamiast pokazywać wiecznie ``pending``; kosztowniejsze
+    (otwiera pamięć), więc domyślnie wyłączone — włączają je jawnie komendy
+    ``doctor`` / ``--status``. Wołający, który już ma otwarte ``AgentMemory``
+    (np. ``surface_status``), niech przekaże gotowy ``bridge_status`` zamiast
+    włączać ``probe_bridge`` — unika podwójnego otwierania store.
+    """
     root = Path(root) if root else Path(__file__).resolve().parent
     sp = Path(settings_path) if settings_path else root / DEFAULT_SETTINGS_NAME
     s = load_settings(sp)
@@ -629,6 +665,23 @@ def doctor(
     add(bool(cfg.keep_facts_forever), "durable_facts", "fact nie wygasa z decay godzin")
     add(bool(cfg.handoff_hybrid_since), "hybrid_handoff", "B10 hybrid --since")
     add(cfg.hard_prune_store_max >= 100, "store_capacity", f"hard_prune_store_max={cfg.hard_prune_store_max}")
+
+    # Uwaga: `cfg.use_bridge` tu jest z profilu wyliczonego w doctor() (settings),
+    # który może różnić się od profilu faktycznie użytego przez wołającego
+    # (np. surface_status otwiera AgentMemory profilu "agent" niezależnie).
+    # Dlatego jawnie przekazany `bridge_status` zawsze wygrywa nad lokalnym cfg.
+    if bridge_status is None and probe_bridge and cfg.use_bridge:
+        bridge_status = _probe_bridge_status(mem_p, cfg)
+
+    if bridge_status is not None:
+        # Informacyjne — Bridge jest opcjonalnym wzmocnieniem (wymaga torch +
+        # transform.py), brak nie oznacza że pamięć SE nie jest gotowa.
+        note = "realnie aktywny" if bridge_status == "on" else "nie odpalił się — sprawdź transform.py / torch"
+        add(True, "bridge", f"status={bridge_status} (Bridge→Prism holography; {note})")
+    elif not cfg.use_bridge:
+        add(True, "bridge", "off (use_bridge=False w profilu) — Prism/klasyczny tor bez Bridge")
+    else:
+        add(True, "bridge", "use_bridge=True, status nie sprawdzony (probe_bridge=False)")
 
     # competitive positioning matrix (informational)
     positioning = [

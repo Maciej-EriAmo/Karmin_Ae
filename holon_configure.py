@@ -779,7 +779,7 @@ def cmd_wizard(args: argparse.Namespace) -> int:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     lang = _lang_of(args)
-    rep = doctor(root=ROOT, settings_path=args.path)
+    rep = doctor(root=ROOT, settings_path=args.path, probe_bridge=True)
     if args.json:
         _print_json(rep)
         return 0 if rep.get("ok") else 1
@@ -1161,7 +1161,7 @@ def cmd_gui(args: argparse.Namespace) -> int:
             messagebox.showerror(t(lang, "error"), str(e))
             return
         save_settings(data, settings_path)
-        rep = doctor(root=ROOT, settings_path=settings_path)
+        rep = doctor(root=ROOT, settings_path=settings_path, probe_bridge=True)
         lines = [f"score={rep['score']}% ok={rep['ok']}", ""]
         for c in rep["checks"]:
             lines.append(f"{'OK' if c['ok'] else '!!'} {c['name']}: {c['detail']}")
