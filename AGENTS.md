@@ -72,6 +72,7 @@ Nie zmyślaj „stanu projektu” z powietrza.
 | **remember / set-work** | zapis fact/work (1 work; **prefiks `[P]`**) | `python holon_agent_memory.py remember --fact "…" --project P` |
 | **close** | B10 — koniec sesji work+fact | `python holon_agent_memory.py close --work-text "…" --fact-text "…" --project P` |
 | **crystallize** | B9 — stałe ścieżki (merge/Φ; `--cross-project` świadomie) | `python holon_agent_memory.py crystallize [--project Holon]` |
+| **crystallize auto** | globalny git hook: crystallize (wszystkie projekty) po KAŻDYM commicie, w każdym repo | `scripts/git_hooks/install.sh` (ustawia `core.hooksPath`) |
 | **entangle** | metryka fact↔work w komorze | `python holon_agent_memory.py entangle --project Holon` |
 | **Bridge→Prism** | mixer + sonda → Φ; `energy→p` (agent ON); bez Embeddera w mixie | [docs/BRIDGE.md](docs/BRIDGE.md) · `HOLON_USE_BRIDGE=0` · ablacja: `bridge_energy_to_importance=false` |
 | **Karmin mirror** | backup we **własnym** DB | `python holon_agent_memory.py karmin-export` |

@@ -1,0 +1,26 @@
+#!/bin/sh
+# post-commit — auto-krystalizacja pamięci Holon/Karmin_Ae (B9) po KAŻDYM
+# commicie, w KAŻDYM repo (instalowany globalnie przez `core.hooksPath`,
+# patrz scripts/git_hooks/install.sh). Bez --project: crystallize przelicza
+# wszystkie projekty naraz (cross_project_merge=False domyślnie, więc komory
+# się nie mieszają).
+#
+# Zasady: nigdy nie blokuje ani nie psuje commita. Cicho pomija repo, w
+# którym Karmin_Ae nie jest dostępny; jeśli repo ma własny lokalny hook
+# post-commit.local, jest on wywoływany na końcu (żeby global hooksPath nie
+# ubił hooków projektowych, np. husky/pre-commit).
+
+HOLON_HOME="${HOLON_AE_HOME:-C:/Users/drwis/Karmin_Ae}"
+
+if [ -f "$HOLON_HOME/holon_agent_memory.py" ]; then
+    if python "$HOLON_HOME/holon_agent_memory.py" crystallize >/dev/null 2>&1; then
+        echo "[Holon] pamięć skrystalizowana (post-commit)"
+    fi
+fi
+
+git_dir=$(git rev-parse --git-dir 2>/dev/null)
+if [ -n "$git_dir" ] && [ -x "$git_dir/hooks/post-commit.local" ]; then
+    "$git_dir/hooks/post-commit.local" "$@"
+fi
+
+exit 0
