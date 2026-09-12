@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""holon/session.py — Session: publiczne API dla użytkownika"""
+"""holon/session.py — Session: publiczne API dla użytkownika
+
+Bazowa klasa dla SecureSession (holon_session_secure.py) i AwareSession
+(holon_session_aware.py). Współdzielona logika (parser przypomnień, wywołanie
+LLM, pętla chat/start) żyje tutaj; podklasy dopinają się przez metody-hooki
+(`_pre_chat_guard`, `_maybe_handle_command`, `_extra_system_context`,
+`_on_reminder_set`, `_start_banner`, `_create_watcher`) zamiast kopiować całość.
+"""
 
 import re
 import datetime
@@ -59,18 +66,31 @@ class Session:
         """Wszczep / podmień LLM w bieżącej sesji (lokalny model na kiedyś)."""
         self._client = client
 
+    # ── Start ──────────────────────────────────────────────────────────────
+
+    def _start_banner(self, s: dict, aii: dict) -> str:
+        return (f"\n[Karmin_Ae v5.13] tur={s['turns']} store={s['store']} "
+                f"delta={s['delta_hours']}h "
+                f"aii={aii['emotion']}(focus:{aii['focus']})")
+
+    def _create_watcher(self) -> ReminderWatcher:
+        return ReminderWatcher(self.holomem)
+
+    def _on_watcher_started(self) -> None:
+        print(f"[ReminderWatcher] Uruchomiony "
+              f"(sprawdzanie co {ReminderWatcher.CHECK_INTERVAL}s)")
+
     def start(self) -> str:
         res = self.holomem.start_session()
         s = self.holomem.stats()
         aii = s["aii"]
-        print(f"\n[Karmin_Ae v5.13] tur={s['turns']} store={s['store']} "
-              f"delta={s['delta_hours']}h "
-              f"aii={aii['emotion']}(focus:{aii['focus']})")
-        self._watcher = ReminderWatcher(self.holomem)
+        print(self._start_banner(s, aii))
+        self._watcher = self._create_watcher()
         self._watcher.start()
-        print(f"[ReminderWatcher] Uruchomiony "
-              f"(sprawdzanie co {ReminderWatcher.CHECK_INTERVAL}s)")
+        self._on_watcher_started()
         return res.get("wake", "")
+
+    # ── Reminder parsing (współdzielone) ─────────────────────────────────────
 
     def _parse_reminder(self, text: str) -> Tuple[Optional[str], Optional[float]]:
         reminder_pattern = re.compile(r'(?:przypomnij|remind)(?:\s+m(?:i|e))?', re.IGNORECASE)
@@ -128,46 +148,79 @@ class Session:
                     pass
         return None, None
 
-    def chat(self, user_input: str) -> str:
-        # Obsługa komend notatek
-        cmd_response = parse_note_command(user_input, self.notes_manager, holomem=self.holomem)
-        if cmd_response:
-            if cmd_response.startswith("__SEARCH_AND_SAVE__"):
-                parts = cmd_response.split('|')
-                if len(parts) == 3:
-                    _, query, filename = parts
-                    prompt = (f"Odpowiedz szczegółowo na pytanie: {query}. "
-                              f"Odpowiedź ma być treścią notatki. Udziel informacji "
-                              f"w formie ciągłego tekstu, bez zbędnych komentarzy.")
-                    messages = [
-                        {"role": "system", "content": "Jesteś asystentem. Podaj konkretne, rzeczowe informacje."},
-                        {"role": "user", "content": prompt}
-                    ]
-                    answer = self._call_llm(messages)
-                    if answer.startswith("[Błąd") or answer.startswith("[Mock]"):
-                        return f"⚠️ Nie udało się wyszukać: {answer}"
-                    title = filename.replace('.md', '').replace('_', ' ')
-                    note = self.notes_manager.create(title=title, content=answer)
-                    self.notes_manager.inject_note(self.holomem, note)
-                    if hasattr(self.holomem, 'conversation_history'):
-                        self.holomem.conversation_history.append({
-                            "role": "assistant",
-                            "content": f"Wyszukano i zapisano notatkę: {note.title}"
-                        })
-                    return (f"📝 Wyszukano i zapisano notatkę: **{note.title}**\n"
-                            f"Plik: {note.path.name}")
-                else:
-                    return "⚠️ Błąd formatowania komendy."
-            
-            if hasattr(self.holomem, 'conversation_history'):
-                self.holomem.conversation_history.append({"role": "assistant", "content": cmd_response})
-            return cmd_response
+    # ── Hooki dla podklas ─────────────────────────────────────────────────
 
-        # Normalna konwersacja
+    def _handle_note_command(self, user_input: str) -> Optional[str]:
+        """Zwróć odpowiedź gdy input to komenda notatek; None gdy nie."""
+        cmd_response = parse_note_command(user_input, self.notes_manager, holomem=self.holomem)
+        if not cmd_response:
+            return None
+
+        if cmd_response.startswith("__SEARCH_AND_SAVE__"):
+            parts = cmd_response.split('|')
+            if len(parts) == 3:
+                _, query, filename = parts
+                prompt = (f"Odpowiedz szczegółowo na pytanie: {query}. "
+                          f"Odpowiedź ma być treścią notatki. Udziel informacji "
+                          f"w formie ciągłego tekstu, bez zbędnych komentarzy.")
+                messages = [
+                    {"role": "system", "content": "Jesteś asystentem. Podaj konkretne, rzeczowe informacje."},
+                    {"role": "user", "content": prompt}
+                ]
+                answer = self._call_llm(messages)
+                if answer.startswith("[Błąd") or answer.startswith("[Mock]"):
+                    return f"⚠️ Nie udało się wyszukać: {answer}"
+                title = filename.replace('.md', '').replace('_', ' ')
+                note = self.notes_manager.create(title=title, content=answer)
+                self.notes_manager.inject_note(self.holomem, note)
+                if hasattr(self.holomem, 'conversation_history'):
+                    self.holomem.conversation_history.append({
+                        "role": "assistant",
+                        "content": f"Wyszukano i zapisano notatkę: {note.title}"
+                    })
+                return (f"📝 Wyszukano i zapisano notatkę: **{note.title}**\n"
+                        f"Plik: {note.path.name}")
+            return "⚠️ Błąd formatowania komendy."
+
+        if hasattr(self.holomem, 'conversation_history'):
+            self.holomem.conversation_history.append({"role": "assistant", "content": cmd_response})
+        return cmd_response
+
+    def _pre_chat_guard(self, user_input: str) -> Optional[str]:
+        """Zwróć non-None by przerwać chat() przed normalnym przebiegiem (np. skaner)."""
+        return None
+
+    def _maybe_handle_command(self, user_input: str) -> Optional[str]:
+        """Zwróć non-None (w tym "") gdy komenda jest w pełni obsłużona bez LLM."""
+        return None
+
+    def _extra_system_context(self, user_input: str) -> str:
+        """Dodatkowy kontekst do system-promptu (np. świadomość notatek/zadań)."""
+        return ""
+
+    def _on_reminder_set(self, reminder_text: str, reminder_time: float) -> None:
+        """Hook wywoływany po zapisaniu przypomnienia (po udanym wywołaniu LLM)."""
+        return None
+
+    # ── Chat ───────────────────────────────────────────────────────────────
+
+    def chat(self, user_input: str, extra_context: str = "") -> str:
+        note_response = self._handle_note_command(user_input)
+        if note_response is not None:
+            return note_response
+
+        guard_msg = self._pre_chat_guard(user_input)
+        if guard_msg is not None:
+            return guard_msg
+
+        cmd_result = self._maybe_handle_command(user_input)
+        if cmd_result is not None:
+            return cmd_result
+
         current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         time_context = f"Aktualna data i godzina: {current_time_str}"
 
-        # Parsowanie przypomnień - teraz bez natychmiastowego modyfikowania user_input
+        # Parsowanie przypomnień - bez natychmiastowego modyfikowania user_input
         # aby uniknąć systemowych dopisków w pamięci długotrwałej (Item.content)
         rem_data = None
         if len(user_input) > 5:
@@ -181,19 +234,29 @@ class Session:
             lines = [f"- {r.content} (za {int((r.created_at - time.time()) // 60)} minut)" for r in upcoming]
             reminder_msg = "[PRZYPOMNIENIA] Nadchodzące wydarzenia:\n" + "\n".join(lines) + "\n"
 
+        awareness = self._extra_system_context(user_input)
+
+        sys_extra_parts = [time_context]
+        if reminder_msg:
+            sys_extra_parts.append(reminder_msg)
+        if rem_data:
+            sys_extra_parts.append(
+                f"[SYSTEM: Ustawiono przypomnienie: {rem_data[0]} na "
+                f"{datetime.datetime.fromtimestamp(rem_data[1])}]"
+            )
+        if awareness:
+            sys_extra_parts.append(awareness)
+        if (extra_context or "").strip():
+            sys_extra_parts.append(extra_context.strip())
+        sys_extra = "\n\n".join(sys_extra_parts)
+
         # Generowanie wiadomości dla LLM
         messages = self.holomem.turn(user_input, self.system)
 
-        # Wstrzykiwanie kontekstu czasu i przypomnień do System Promptu
         if messages and messages[0]["role"] == "system":
-            messages[0]["content"] += "\n\n" + time_context
-            if reminder_msg:
-                messages[0]["content"] += "\n\n" + reminder_msg
-            if rem_data:
-                messages[0]["content"] += f"\n\n[SYSTEM: Ustawiono przypomnienie: {rem_data[0]} na {datetime.datetime.fromtimestamp(rem_data[1])}]"
+            messages[0]["content"] += "\n\n" + sys_extra
         else:
-            full_sys = time_context + ("\n\n" + reminder_msg if reminder_msg else "")
-            messages.insert(0, {"role": "system", "content": full_sys})
+            messages.insert(0, {"role": "system", "content": sys_extra})
 
         response = self._call_llm(messages)
 
@@ -205,6 +268,7 @@ class Session:
         # Dopiero po udanym wywołaniu LLM dodajemy przypomnienie i zapisujemy turę
         if rem_data:
             self.holomem.add_reminder(rem_data[0], rem_data[1])
+            self._on_reminder_set(rem_data[0], rem_data[1])
 
         self.holomem.after_turn(user_input, response)
 

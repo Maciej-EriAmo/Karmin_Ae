@@ -51,13 +51,15 @@ from holon_item import Item
 from holon_lexindex import LexicalIndex
 
 
-# Domyślne kotwice pod pracę Grok Build — seed idempotentny po treści.
+# Domyślne kotwice pod pracę agenta CLI (dowolny: Grok, Claude Code, inny) —
+# seed idempotentny po treści.
 AGENT_SEED: Tuple[Tuple[str, str], ...] = (
     ("fact",
      "Partner użytkownika: Maciek (EriAmo). Komunikacja po polsku, partnersko. "
      "Holon = pamięć SE; KarmazynOs = osobny monorepo runtime (nie fork Holona)."),
     ("fact",
-     "Agent CLI: Grok (xAI). OBOWIĄZKOWY start: `cd C:\\Users\\drwis\\Karmin_Ae` "
+     "Agent CLI: lokalny agent kodowy (Grok / Claude Code / inny — nie zakładaj z góry "
+     "który). OBOWIĄZKOWY start: `cd C:\\Users\\drwis\\Karmin_Ae` "
      "&& `python agent_boot.py` (lub agent_boot.cmd). Potem Mneme-L / remember. "
      "Nie chwal cudzych memory SaaS — tu jest własny stack SE."),
     ("fact",
