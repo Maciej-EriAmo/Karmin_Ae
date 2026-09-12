@@ -644,7 +644,7 @@ def doctor(
     włączać ``probe_bridge`` — unika podwójnego otwierania store.
     """
     root = Path(root) if root else Path(__file__).resolve().parent
-    sp = Path(settings_path) if settings_path else root / DEFAULT_SETTINGS_NAME
+    sp = Path(settings_path) if settings_path else default_settings_path(root)
     s = load_settings(sp)
     cfg = load_config(settings=s, apply_env=True)
     mem = resolve_memory_path(settings=s, root=root)
