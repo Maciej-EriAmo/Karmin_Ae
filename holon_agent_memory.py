@@ -564,6 +564,35 @@ class AgentMemory:
         base["remember_hooks"] = len(self._remember_hooks)
         return base
 
+    def _probe_bridge_status_for_handoff(self, st: dict, cfg: Any) -> Optional[str]:
+        """Realny bridge_status dla handoff zamiast wiecznego 'pending'.
+
+        ``_ensure_bridge`` odpala się leniwie dopiero przy pierwszej turze Φ
+        z >=2 aktywnymi itemami — sam boot (enter + handoff) takiej tury nie
+        robi, więc bez tej sondy handoff zawsze pokazywałby "pending", myląco
+        sugerując że Bridge->Prism nie działa. Sonda pomija kalibrację wag
+        (``bridge_calibrate_steps=0``) — do samego stwierdzenia gotowości nie
+        jest potrzebna, a oszczędza ~4s na każdym boot. self.hm jest tu
+        one-shot (boot nie robi dalszych tur Φ), więc bezpiecznie podmieniamy
+        cfg na chwilę zamiast otwierać drugi store.
+        """
+        if not bool(getattr(cfg, "use_bridge", False)):
+            return str(st.get("bridge_status") or "off")
+        if st.get("bridge_status") == "on":
+            return "on"
+        try:
+            import dataclasses
+
+            orig_cfg = self.hm.cfg
+            try:
+                self.hm.cfg = dataclasses.replace(orig_cfg, bridge_calibrate_steps=0)
+                self.hm._ensure_bridge()
+                return str(self.hm._bridge_status)
+            finally:
+                self.hm.cfg = orig_cfg
+        except Exception as e:
+            return f"probe_error:{type(e).__name__}"
+
     def set_work(self, content: str, project: str = "",
                  max_active: Optional[int] = None) -> Item:
         """Ustaw aktywne work; nadmiar work (ten sam projekt) → fact (historia).
@@ -1486,6 +1515,7 @@ class AgentMemory:
             self.start()
         st = self.stats()
         cfg = self.hm.cfg
+        bridge_status = self._probe_bridge_status_for_handoff(st, cfg)
         if max_work is None:
             max_work = int(getattr(cfg, "handoff_max_work", 1))
         if max_facts is None:
@@ -1612,6 +1642,8 @@ class AgentMemory:
                 "work": st.get("work"),
                 "work_project": len(work_all),
                 "episodic": st.get("episodic"),
+                "bridge_status": bridge_status,
+                "bridge_energy": (st.get("bridge_energy") or {}) if bridge_status == "on" else {},
             },
             "wake": wake,
             "active_work": active_packed,
