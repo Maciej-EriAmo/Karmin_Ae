@@ -9,7 +9,7 @@ w jednym miejscu; różnice wpina się przez parametry.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, Optional, Sequence
 
 
 def run_repl(
