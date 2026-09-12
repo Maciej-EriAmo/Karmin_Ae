@@ -24,52 +24,28 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from holon_repl import run_repl
 from holon_session_aware import AwareSession
 
 
 def main():
-    print("=" * 60)
-    print("  Karmin_Ae v5.13 AWARE — EriAmo z pełną świadomością")
-    print("=" * 60)
-    
     session = AwareSession(
         memory_path="holon_memory.json",
         notes_dir="notes",
-        tasks_dir="tasks"
+        tasks_dir="tasks",
     )
-    
-    wake_msg = session.start()
-    if wake_msg:
-        print(f"\n{wake_msg}\n")
-    
-    print("\nKomendy: quit, stats, reset, ruminate")
-    print("         zapisz: <tekst>, pokaż notatki")
-    print("         zadanie: <tekst>, pokaż zadania")
-    print("         przypomnij mi [treść] za/o [czas]")
-    print("-" * 60)
-
-    try:
-        while True:
-            try:
-                user = input("\nTy: ").strip()
-            except (EOFError, KeyboardInterrupt):
-                print("\nDo widzenia.")
-                break
-            
-            if not user:
-                continue
-            
-            if user.lower() == "quit":
-                break
-            
-            print("\nEriAmo: ", end="", flush=True)
-            response = session.chat(user)
-            if response:
-                print(response)
-    
-    finally:
-        session.stop()
-        print("[Holon] Sesja zakończona.")
+    run_repl(
+        session,
+        title="  Karmin_Ae v5.13 AWARE — EriAmo z pełną świadomością",
+        subtitle_lines=[
+            "Komendy: quit, stats, reset, ruminate",
+            "         zapisz: <tekst>, pokaż notatki",
+            "         zadanie: <tekst>, pokaż zadania",
+            "         przypomnij mi [treść] za/o [czas]",
+        ],
+        response_label="EriAmo",
+        on_finally=session.stop,
+    )
 
 
 if __name__ == "__main__":
