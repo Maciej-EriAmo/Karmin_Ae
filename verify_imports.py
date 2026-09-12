@@ -28,6 +28,7 @@ MODULES = [
     ("holon_settings",     []),
     ("holon_configure",    ["holon_settings"]),
     ("holon_agent_memory", ["holon_config", "holon_embedder", "holon_holomem", "holon_item", "numpy"]),
+    ("holon_agent_cli",    ["holon_agent_memory"]),
     ("agent_boot",         ["holon_agent_memory"]),
     ("holon_session",      ["holon_config", "holon_embedder", "holon_holomem", "holon_watcher", "holon_llm", "holon_prompts", "notes_manager", "requests"]),
     ("karmin_app",         []),
