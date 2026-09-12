@@ -76,7 +76,8 @@ Pełny opis (pola, update, inject, granice): **[AII_PROTO_EMOTIONS.md](AII_PROTO
 | Plik | Rola |
 |------|------|
 | `holon_memory_api.py` | Protokół + `open_memory` |
-| `holon_agent_memory.py` | Agent surface + CLI |
+| `holon_agent_memory.py` | Agent surface (`AgentMemory`) — biblioteka, bez CLI |
+| `holon_agent_cli.py` | CLI dispatch (`argparse`) dla `python holon_agent_memory.py <cmd>` |
 | `holon_memory_eval.py` | Golden eval + **B6** `run_ablation_report` |
 | `holon_lexindex.py` | **B2** inverted lexical index |
 | `holon_remember_watch.py` | **B4** JSONL inbox watch |
@@ -91,7 +92,10 @@ Pełny opis (pola, update, inject, granice): **[AII_PROTO_EMOTIONS.md](AII_PROTO
 | `holon_bridge.py` | BridgeStack: `transform.py` → Prism teleport (bez Embeddera) |
 | `holon_embedder.py` | KuRz + time (hash fallback) |
 | `holon_llm.py` | LLM backends + local factory |
-| `holon_session.py` | Chat product API |
+| `holon_session.py` | Chat product API — `Session`; baza dla `SecureSession`/`AwareSession` |
+| `holon_session_secure.py` | `SecureSession(Session)` — + PromptScanner (Layer 0) |
+| `holon_session_aware.py` | `AwareSession(SecureSession)` — + notatki/zadania/świadomość kontekstu |
+| `holon_repl.py` | Wspólna pętla REPL dla `main*.py` |
 | `scripts/bench_bridge_vs_prism.py` | bench Bridge vs Softmax + Prism vs flat |
 | `main.py` | REPL EriAmo |
 

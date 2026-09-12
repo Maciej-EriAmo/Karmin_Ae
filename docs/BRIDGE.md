@@ -77,6 +77,14 @@ Itemy aktywne (work/recalled/świeże)
 
 Diagnostyka po pierwszym Φ: `stats()` → `bridge_status`, `bridge_energy_to_importance`, `bridge_energy` (`imp_in`/`imp_out`, `structure`, `boost`, …).
 
+**Uwaga (2026-09):** `bridge_status` jest leniwy per-proces — bez realnej tury Φ
+zawsze pokazywał `pending`, myląco sugerując że Bridge nie działa, nawet gdy
+config i `transform.py` były w porządku. `python holon_configure.py doctor`,
+`karmin_app.py --status` i `agent_boot.py` (pole `stats.bridge_status` w handoff)
+robią teraz tanią sondę gotowości (`bridge_calibrate_steps=0` — bez pełnej
+kalibracji wag, ~0.5s zamiast ~4.7s) i pokazują realny stan (`on` /
+`unavailable:…`) zamiast wiecznego `pending`.
+
 ## Bench / testy
 
 ```bat
