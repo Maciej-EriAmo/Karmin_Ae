@@ -59,7 +59,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     p.add_argument("--kind", default="", help="fact|work|note")
     p.add_argument("--top", type=int, default=8)
-    p.add_argument("--path", default="holon_memory.json")
+    p.add_argument("--path", default="")
     p.add_argument("--no-save", action="store_true")
     p.add_argument("--project", default="",
                    help="filtr / prefiks projektu (Holon, Karmazyn, …)")
