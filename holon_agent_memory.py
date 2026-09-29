@@ -45,7 +45,7 @@ import numpy as np
 
 from holon_config import Config
 from holon_embedder import Embedder
-from holon_holomem import HoloMem
+from holon_holomem import HoloMem, extends_text as _extends_text, tail_diverges as _tail_diverges
 from holon_item import Item
 from holon_lexindex import LexicalIndex
 
@@ -281,23 +281,30 @@ class AgentMemory:
         emb = self.hm.embedder.encode(content, timestamp=time.time())
         best = None
         merge_thr = float(getattr(self.hm.cfg, "remember_merge_sim", 0.88))
-        # 1) exact / prefix — KuRz często nie scala tego samego tekstu (sim≪0.9)
+        # 1) exact / prawdziwy dopisek — KuRz często nie scala tego samego tekstu (sim≪0.9)
         c_norm = content[:800].strip().lower()
-        src_tag = project_tag_of(content)
         for it in self.hm.store:
             if not self._same_chamber(content, it.content or ""):
                 continue
             ic = (it.content or "").strip().lower()
-            if ic == c_norm or (len(c_norm) > 40 and (ic.startswith(c_norm[:80])
-                                                      or c_norm.startswith(ic[:80]))):
+            if ic == c_norm or _extends_text(ic, c_norm):
                 best = it
                 break
         if best is None and self.hm.store:
-            best_sim, cand = self.hm._find_best_match(emb)
+            # Próg na treści, bez kanału czasu: ten sam moment zapisu windował cosine.
+            cdim = int(self.hm.cfg.dim)
+            q = np.asarray(emb[:cdim], dtype=np.float32)
+            best_sim, cand = -1.0, None
+            for it in self.hm.store:
+                if not self._same_chamber(content, it.content or ""):
+                    continue
+                s = float(self.hm._cosine_sim(q, it.emb_content(cdim)))
+                if s > best_sim:
+                    best_sim, cand = s, it
             if (
                 cand is not None
                 and best_sim > merge_thr
-                and self._same_chamber(content, cand.content or "")
+                and not _tail_diverges(c_norm, (cand.content or "").strip().lower())
             ):
                 best = cand
         if best is not None:
@@ -520,7 +527,7 @@ class AgentMemory:
             # pomiń jeśli bardzo podobna treść już jest
             emb = self.hm.embedder.encode(text, timestamp=time.time())
             if self.hm.store and not force:
-                best_sim, _ = self.hm._find_best_match(emb)
+                best_sim, _ = self.hm._find_best_match(emb, text=text)
                 if best_sim > 0.90:
                     # i tak odśwież flagi kind
                     self.remember(text, kind=kind)
@@ -594,9 +601,11 @@ class AgentMemory:
 
     def set_work(self, content: str, project: str = "",
                  max_active: Optional[int] = None) -> Item:
-        """Ustaw aktywne work; nadmiar work (ten sam projekt) → fact (historia).
+        """Ustaw aktywne work; nadmiar work tej samej komory → fact (historia).
 
         Prefiks ``[Project]`` dodawany gdy ``project`` podany i brak w treści.
+        Tag już obecny w treści wygrywa z ``project`` (ścięcie i kurek idą za tagiem).
+        Bez tagu i bez ``project`` ścinane są tylko inne wpisy bez tagu.
         Domyślnie ``max_active=1`` (Config.set_work_max_active) — jeden wątek.
         """
         content = (content or "").strip()
@@ -608,20 +617,28 @@ class AgentMemory:
             max_active = int(getattr(self.hm.cfg, "set_work_max_active", 1))
         max_active = max(1, int(max_active))
         item = self.remember(content, kind="work", relevance=1.6)
-        works = [i for i in self.hm.store if i.is_work]
-        if proj:
-            works = [w for w in works if self._match_project(w.content, proj)]
-        works.sort(key=lambda x: -(x.created_at or 0))
-        for w in works[max_active:]:
-            if w is item:
-                continue
+        # Scalenie ze starym wpisem zostawia jego created_at. Bez odświeżenia
+        # nowszy, inny work zostaje obok, bo pętla omija właśnie ten item.
+        item.created_at = time.time()
+        item.age = 0
+        # Prefiks w treści wygrywa z argumentem --project. Inaczej ścięcie
+        # idzie w cudzą komorę, a w tej z tagu zostają dwa work.
+        chamber = self._project_tag(item.content) or proj
+        others = [i for i in self.hm.store if i.is_work and i is not item]
+        if chamber:
+            others = [w for w in others if self._match_project(w.content, chamber)]
+        else:
+            others = [w for w in others if not self._project_tag(w.content or "")]
+        others.sort(key=lambda x: -(x.created_at or 0))
+        keep_others = max(0, max_active - 1)
+        for w in others[keep_others:]:
             w.is_work = False
             w.is_fact = True  # historia projektu zostaje durable
-        if proj:
+        if proj and chamber:
             prev = self.read_hammer()
-            if prev and prev.lower() != proj.lower():
+            if prev and prev.lower() != chamber.lower():
                 self.snapshot_chamber(prev)
-            self.touch_last_project(proj)
+            self.touch_last_project(chamber)
         return item
 
     # ── B10: last-project + close sesji ───────────────────────────────────
@@ -762,18 +779,33 @@ class AgentMemory:
         wid = str((snap or {}).get("work_id") or "").strip()
         wtxt = str((snap or {}).get("work") or "").strip()
         target = None
+        best_ext_item = None
+        best_ext = -1
         if wid:
             for i in self.hm.store:
                 if i.id == wid:
                     target = i
                     break
         if target is None and wtxt:
-            head = wtxt[:80]
+            head = wtxt.strip().lower()
             for i in self.hm.store:
-                c = i.content or ""
-                if c.startswith(head) or head in c:
+                c = (i.content or "").strip()
+                if not self._match_project(c, proj):
+                    continue
+                cl = c.lower()
+                # Tylko ten sam tekst albo prawdziwy dopisek. Wspólne 80 znaków
+                # przy innej końcówce wskrzeszało sąsiedni fakt.
+                if cl == head:
                     target = i
                     break
+                if _extends_text(cl, head):
+                    ext = i
+                    ext_len = min(len(cl), len(head))
+                    if ext_len > best_ext:
+                        best_ext = ext_len
+                        best_ext_item = ext
+        if target is None:
+            target = best_ext_item
         if target is None:
             return False
         target.is_work = True
@@ -985,7 +1017,9 @@ class AgentMemory:
         s += lex_w * self.hm._lexical_overlap(a.content or "", b.content or "")
         ca = (a.content or "").strip().lower()
         cb = (b.content or "").strip().lower()
-        if ca and cb and (ca == cb or ca[:80] == cb[:80]):
+        if _tail_diverges(ca, cb):
+            return 0.0
+        if ca and cb and (ca == cb or _extends_text(ca, cb)):
             s = max(s, 0.99)
         return s
 
@@ -1030,14 +1064,12 @@ class AgentMemory:
             float(donor.relevance or 0),
             float(getattr(self.hm.cfg, "crystallize_relevance_floor", 1.4)),
         )
+        surv_was_work = bool(survivor.is_work)
         survivor.is_fact = bool(survivor.is_fact or donor.is_fact)
-        survivor.is_work = bool(survivor.is_work or donor.is_work)
         survivor.is_insight = bool(survivor.is_insight or donor.is_insight)
         survivor.is_reminder = bool(survivor.is_reminder or donor.is_reminder)
-        # po merge ścieżka jest wiedzą, nie samym work-spamem gdy donor był fact
-        if survivor.is_fact and survivor.is_work and not donor.is_work:
-            # zachowaj work tylko jeśli survivor był work
-            pass
+        # Flaga work zostaje przy ocalałym. Donor-work nie zamienia faktu w drugie work.
+        survivor.is_work = surv_was_work
         sc, dc = (survivor.content or ""), (donor.content or "")
         if len(dc) > len(sc):
             survivor.content = dc[:800]
@@ -1061,7 +1093,7 @@ class AgentMemory:
 
         1. Merge near-duplikatów (cosine+lex) → jedna ścieżka, większy cluster_size
         2. Promote epizodów z dużym cluster_size → fact
-        3. Demote nadmiaru work → fact (higiena SE, jak set-work)
+        3. Demote nadmiaru work → fact (1 work na komorę; pusty project nie ścina bębna)
         4. Podbij relevance durable + wzmocnij Φ wokół ocalałych ścieżek
 
         Zwraca raport JSON-friendly. ``dry_run`` nie mutuje store.
@@ -1164,16 +1196,25 @@ class AgentMemory:
                     it.age = 0
 
         demoted_work: List[str] = []
-        works = [
-            i for i in self.hm.store
-            if i.is_work and self._match_project(i.content, project)
-        ]
-        works.sort(key=lambda x: -(x.created_at or 0))
-        for w in works[max_w:]:
-            demoted_work.append((w.content or "")[:120])
-            if not dry_run:
-                w.is_work = False
-                w.is_fact = True
+        # Pusty project: 1 work na komorę, nie jeden work na cały bęben.
+        works_all = [i for i in self.hm.store if i.is_work]
+        proj_c = (project or "").strip()
+        if proj_c:
+            groups = {
+                proj_c: [w for w in works_all if self._match_project(w.content, proj_c)]
+            }
+        else:
+            groups = {}
+            for w in works_all:
+                tag = self._project_tag(w.content) or "_untagged"
+                groups.setdefault(tag, []).append(w)
+        for _tag, ws in groups.items():
+            ws.sort(key=lambda x: -(x.created_at or 0))
+            for w in ws[max_w:]:
+                demoted_work.append((w.content or "")[:120])
+                if not dry_run:
+                    w.is_work = False
+                    w.is_fact = True
 
         reinforced = 0
         if reinforce_phi and not dry_run:

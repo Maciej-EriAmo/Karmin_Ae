@@ -422,5 +422,221 @@ class TestMemoryPhysics(unittest.TestCase):
             self.assertIsInstance(rep["entanglement"], float)
 
 
+class TestMemoryBugfixes(unittest.TestCase):
+    def _am(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        return AgentMemory.open(
+            memory_path=str(Path(td.name) / "m.json"),
+            profile="agent",
+            use_settings=False,
+        )
+
+    def test_crystallize_keeps_one_work_per_chamber(self):
+        am = self._am()
+        h = am.remember("[Holon] work holon alpha unikalny", kind="work")
+        k = am.remember("[Karmazyn] work karmazyn beta unikalny", kind="work")
+        k.created_at = time.time() + 500
+        rep = am.crystallize(
+            project="", dry_run=False, max_active_work=1, reinforce_phi=False
+        )
+        alive = [i for i in am.hm.store if i.is_work]
+        self.assertEqual(rep["demoted_work_to_fact"], 0)
+        self.assertEqual({i.id for i in alive}, {h.id, k.id})
+
+    def test_remember_shared_window_stays_two_facts(self):
+        am = self._am()
+        prefix = "[Holon] " + ("WSPOLNY PREFIKS " * 6)
+        a = am.remember(prefix + "KONIEC-A unikalne-a", kind="fact")
+        b = am.remember(prefix + "KONIEC-B unikalne-b", kind="fact")
+        self.assertNotEqual(a.id, b.id)
+        rep = am.crystallize(project="Holon", dry_run=False, reinforce_phi=False)
+        self.assertEqual(rep["merged"], 0)
+        texts = [i.content for i in am.hm.store]
+        self.assertTrue(any("KONIEC-A" in t for t in texts))
+        self.assertTrue(any("KONIEC-B" in t for t in texts))
+
+    def test_remember_true_extension_still_merges(self):
+        am = self._am()
+        base = "[Holon] " + ("dokladnie ten sam fakt o slabie " * 2)
+        a = am.remember(base, kind="fact")
+        b = am.remember(base + " i dopisek na koncu", kind="fact")
+        self.assertEqual(a.id, b.id)
+        self.assertIn("dopisek", b.content)
+
+    def test_remember_same_moment_does_not_fuse_distinct(self):
+        am = self._am()
+        a = am.remember(
+            "[Holon] swiezy odrebny temat alfa numer0 bez wspolnego ogona",
+            kind="fact",
+        )
+        b = am.remember(
+            "[Holon] swiezy odrebny temat delta numer3 bez wspolnego ogona",
+            kind="fact",
+        )
+        self.assertNotEqual(a.id, b.id)
+        self.assertEqual(len(am.hm.store), 2)
+
+    def test_set_work_text_tag_wins_over_project_arg(self):
+        am = self._am()
+        am.set_work("stary holon", project="Holon")
+        am.set_work("stary karmazyn", project="Karmazyn")
+        am.set_work("[Holon] nowy holon inny tekst", project="Karmazyn")
+        works = [i for i in am.hm.store if i.is_work]
+        tags = [am._project_tag(i.content) for i in works]
+        self.assertEqual(tags.count("Holon"), 1)
+        self.assertEqual(tags.count("Karmazyn"), 1)
+        self.assertTrue(any("nowy holon" in (i.content or "") for i in works))
+        self.assertEqual(am.read_hammer(), "Holon")
+
+    def test_restore_skips_shared_prefix_sibling(self):
+        am = self._am()
+        prefix = "[Holon] " + ("WSPOLNY PREFIKS " * 6)
+        b = am.remember(prefix + "KONIEC-B unikalne-b", kind="fact")
+        a = am.remember(prefix + "KONIEC-A unikalne-a", kind="fact")
+        am.hm.store = [b, a]
+        ok = am._restore_chamber_work(
+            "Holon",
+            {"work_id": "brak", "work": prefix + "KONIEC-A unikalne-a"},
+        )
+        self.assertTrue(ok)
+        self.assertTrue(a.is_work)
+        self.assertFalse(b.is_work)
+
+    def test_turn_does_not_merge_across_chambers(self):
+        cfg = Config.chat()
+        with tempfile.TemporaryDirectory() as td:
+            hm = HoloMem(
+                Embedder(dim=cfg.dim, time_dim=cfg.time_dim),
+                cfg,
+                str(Path(td) / "c.json"),
+            )
+            hm.start_session()
+            body = "identyczny fakt komory o slabie freelist " * 3
+            hm.turn("[Holon] " + body)
+            hm.turn("[Karmazyn] " + body)
+            texts = [i.content or "" for i in hm.store]
+            self.assertEqual(len(hm.store), 2)
+            self.assertTrue(any(t.startswith("[Holon]") for t in texts))
+            self.assertTrue(any(t.startswith("[Karmazyn]") for t in texts))
+
+    def test_set_work_without_project_keeps_other_chamber(self):
+        am = self._am()
+        am.set_work("watek holon pierwszy", project="Holon")
+        am.set_work("watek karmazyn osobny", project="Karmazyn")
+        am.set_work("[Holon] nowy watek holon zupelnie inny")
+        tags = [am._project_tag(i.content) for i in am.hm.store if i.is_work]
+        self.assertEqual(tags.count("Holon"), 1)
+        self.assertEqual(tags.count("Karmazyn"), 1)
+        self.assertIn("nowy watek holon", " ".join(i.content for i in am.hm.store if i.is_work))
+
+    def test_set_work_untagged_does_not_demote_chambers(self):
+        am = self._am()
+        am.set_work("watek holon zostaje", project="Holon")
+        am.set_work("luzny watek bez tagu numer jeden")
+        am.set_work("luzny watek bez tagu numer dwa")
+        holon = [
+            i for i in am.hm.store
+            if i.is_work and am._match_project(i.content, "Holon")
+        ]
+        bare = [
+            i for i in am.hm.store
+            if i.is_work and not am._project_tag(i.content or "")
+        ]
+        self.assertEqual(len(holon), 1)
+        self.assertEqual(len(bare), 1)
+        self.assertIn("numer dwa", bare[0].content)
+
+    def test_turn_keeps_diverging_tails_and_merges_exact(self):
+        cfg = Config.chat()
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "m.json")
+            hm = HoloMem(
+                Embedder(dim=cfg.dim, time_dim=cfg.time_dim),
+                cfg,
+                path,
+            )
+            hm.start_session()
+            prefix = "WSPOLNY PREFIKS " * 6
+            hm.turn(prefix + "KONIEC-A unikalne-a")
+            hm.turn(prefix + "KONIEC-B unikalne-b")
+            texts = [i.content or "" for i in hm.store]
+            self.assertTrue(any("KONIEC-A" in t for t in texts))
+            self.assertTrue(any("KONIEC-B" in t for t in texts))
+            hm.turn("dokladnie ta sama tura o slabie freelist")
+            hm.turn("dokladnie ta sama tura o slabie freelist")
+            same = [t for t in (i.content or "" for i in hm.store) if "slabie freelist" in t]
+            self.assertEqual(len(same), 1)
+            hm2 = HoloMem(
+                Embedder(dim=cfg.dim, time_dim=cfg.time_dim),
+                cfg,
+                str(Path(td) / "m2.json"),
+            )
+            hm2.start_session()
+            hm2.after_turn(prefix + "KONIEC-A unikalne-a", "odpowiedz alfa")
+            hm2.after_turn(prefix + "KONIEC-B unikalne-b", "odpowiedz beta")
+            tails = [i.content or "" for i in hm2.store]
+            self.assertTrue(any("KONIEC-A" in t for t in tails))
+            self.assertTrue(any("KONIEC-B" in t for t in tails))
+
+    def test_set_work_after_merge_keeps_one(self):
+        am = self._am()
+        stem = "[Holon] " + ("abcde " * 20)
+        old = am.set_work(stem, project="Holon")
+        old.created_at = 1000.0
+        am.remember("[Holon] zupelnie inny watek numer 777", kind="work")
+        am.set_work(stem + "DOPISEK NOWY", project="Holon")
+        works = [i for i in am.hm.store if i.is_work]
+        self.assertEqual(len(works), 1)
+        self.assertIn("DOPISEK", works[0].content)
+
+    def test_restore_ignores_foreign_quote(self):
+        am = self._am()
+        am.remember(
+            "[Karmazyn] cytat cudzej komory: TOKEN-RESTORE-XYZ reszta",
+            kind="fact",
+        )
+        ok = am._restore_chamber_work(
+            "Holon",
+            {"work_id": "brak-takiego-id", "work": "TOKEN-RESTORE-XYZ"},
+        )
+        self.assertFalse(ok)
+        self.assertEqual(sum(1 for i in am.hm.store if i.is_work), 0)
+
+    def test_restore_same_chamber_by_prefix(self):
+        am = self._am()
+        item = am.remember(
+            "[Holon] TOKEN-RESTORE-XYZ dluzszy opis worku komory",
+            kind="fact",
+        )
+        ok = am._restore_chamber_work(
+            "Holon",
+            {
+                "work_id": "brak-takiego-id",
+                "work": "[Holon] TOKEN-RESTORE-XYZ dluzszy opis worku komory",
+            },
+        )
+        self.assertTrue(ok)
+        self.assertTrue(item.is_work)
+        self.assertEqual(am._project_tag(item.content), "Holon")
+
+    def test_recall_pool_keeps_old_unique_hit(self):
+        am = self._am()
+        am.hm.cfg.lexical_index_min_store = 1
+        am.hm.cfg.lexical_index_max_candidates = 3
+        oldf = am.remember("[Holon] archiwum ZEGARQQQ999 tylko tutaj", kind="fact")
+        oldf.age = 90
+        for i in range(8):
+            it = am.remember(
+                f"[Holon] qwerty{i} zxcv{i * 17} plmok{i * 13} unik{i}",
+                kind="fact",
+            )
+            it.age = 0
+        pool = am._recall_pool("ZEGARQQQ999")
+        self.assertTrue(any(i.id == oldf.id for i in pool))
+        ranked = am.recall("ZEGARQQQ999", top_k=5)
+        self.assertTrue(any(it.id == oldf.id for _, it in ranked))
+
+
 if __name__ == "__main__":
     unittest.main()

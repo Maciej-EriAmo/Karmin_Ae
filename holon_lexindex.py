@@ -126,6 +126,7 @@ class LexicalIndex:
         """Kandydaci do scoringu: hit leksykalny ∪ (opcjonalnie durable)."""
         self.ensure(store)
         id_hits = self.query_ids(query)
+        q_toks = tokenize(query, self.min_token_len)
         by_id = {i.id: i for i in store if getattr(i, "id", None)}
         picked: List["Item"] = []
         seen: Set[str] = set()
@@ -147,14 +148,20 @@ class LexicalIndex:
                         seen.add(it.id)
 
         if len(picked) > max_candidates:
-            # preferuj durable + świeże
-            picked.sort(
-                key=lambda x: (
+            # Hit zapytania zostaje, nawet gdy jest starszy niż świeże durable.
+            def _rank(x: "Item") -> tuple:
+                overlap = 0
+                if q_toks:
+                    overlap = len((self.doc_tokens.get(x.id) or set()) & q_toks)
+                return (
+                    -overlap,
+                    0 if x.id in id_hits else 1,
                     0 if (x.is_fact or x.is_work) else 1,
                     x.age,
                     -(x.relevance or 0),
                 )
-            )
+
+            picked.sort(key=_rank)
             picked = picked[:max_candidates]
 
         if not picked:

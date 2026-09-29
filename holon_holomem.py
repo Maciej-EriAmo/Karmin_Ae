@@ -17,6 +17,45 @@ from holon_aii import AIIState, TimeDecay
 from holon_memory import PersistentMemory
 
 
+def extends_text(a: str, b: str, *, min_len: int = 40) -> bool:
+    """Krótszy tekst jest całym prefiksem dłuższego (dopisek)."""
+    if not a or not b or a == b:
+        return False
+    short, long = (a, b) if len(a) <= len(b) else (b, a)
+    if len(short) <= min_len:
+        return False
+    return long.startswith(short)
+
+
+_TAG_HEAD_RE = re.compile(r"^\s*\[([^\]]+)\]")
+
+
+def record_chamber(text: str) -> str:
+    """Prefiks ``[Tag]`` na czele wpisu. W turze czatu tag siedzi po ``User:``."""
+    raw = (text or "").strip()
+    if raw.lower().startswith("user:"):
+        first = raw.split("\n", 1)[0]
+        raw = first.split(":", 1)[1].strip() if ":" in first else raw
+    m = _TAG_HEAD_RE.match(raw)
+    return (m.group(1) if m else "").strip().lower()
+
+
+def tail_diverges(a: str, b: str, *, min_prefix: int = 40, min_tail: int = 8) -> bool:
+    """Długi wspólny szablon, obie końcówki inne.
+
+    Hash zlewa takie pary w cosine ~1. To nie jest dopisek ani ten sam wpis.
+    """
+    if not a or not b or a == b:
+        return False
+    n = 0
+    limit = min(len(a), len(b))
+    while n < limit and a[n] == b[n]:
+        n += 1
+    if n < min_prefix:
+        return False
+    return (len(a) - n) >= min_tail and (len(b) - n) >= min_tail
+
+
 class HoloMem:
     FACT_PATTERNS: Tuple[str, ...] = (
         "mój ulubiony", "jestem", "mam na imię", "nazywam się",
@@ -694,13 +733,44 @@ class HoloMem:
                    or any(p in text.lower() for p in self.FOCUS_PATTERNS))
         return is_fact, is_work
 
-    def _find_best_match(self, emb: np.ndarray) -> tuple:
+    def _find_best_match(self, emb: np.ndarray, text: str = "") -> tuple:
+        """Najbliższy wpis po treści, w tej samej komorze gdy ``text`` podany.
+
+        Kanał czasu nie wchodzi do progu merge. Pusty ``text`` nie filtruje komór
+        (stare wołania). Podany tekst: tag albo jego brak musi się zgadzać.
+        """
+        cdim = int(self.cfg.dim)
+        q = np.asarray(emb[:cdim], dtype=np.float32)
+        filter_chamber = bool(text)
+        want = record_chamber(text) if filter_chamber else ""
         best_sim, best_item = -1.0, None
         for i in self.store:
-            sim = self._csim(emb, i.emb_np())
+            if filter_chamber and record_chamber(i.content or "") != want:
+                continue
+            sim = self._csim(q, i.emb_content(cdim))
             if sim > best_sim:
                 best_sim, best_item = sim, i
         return best_sim, best_item
+
+    def _accept_store_merge(
+        self,
+        sim: float,
+        item,
+        text: str,
+        thr: float = 0.95,
+        chamber_text: Optional[str] = None,
+    ) -> bool:
+        if item is None or sim <= thr:
+            return False
+        a = (text or "").strip().lower()
+        b = (getattr(item, "content", None) or "").strip().lower()
+        if tail_diverges(a, b):
+            return False
+        left = record_chamber(text if chamber_text is None else chamber_text)
+        right = record_chamber(getattr(item, "content", None) or "")
+        if left != right:
+            return False
+        return True
 
     # ── Build messages ─────────────────────────────────────────────────────
 
@@ -817,9 +887,9 @@ class HoloMem:
 
         skip = False
         if self.store:
-            best_sim, best_item = self._find_best_match(q_timed)
+            best_sim, best_item = self._find_best_match(q_timed, text=user_message)
             is_new_fact, is_new_work = self._detect_fact_work(user_message)
-            if best_sim > 0.95:
+            if self._accept_store_merge(best_sim, best_item, user_message):
                 self._semantic_merge(best_item, q_timed)
                 best_item.is_fact = best_item.is_fact or is_new_fact
                 best_item.is_work = best_item.is_work or is_new_work
@@ -853,9 +923,11 @@ class HoloMem:
 
         skip = False
         if self.store:
-            best_sim, best_item = self._find_best_match(comb_emb)
+            best_sim, best_item = self._find_best_match(comb_emb, text=user_message)
             is_new_fact, is_new_work = self._detect_fact_work(user_message)
-            if best_sim > 0.95:
+            if self._accept_store_merge(
+                best_sim, best_item, combined, chamber_text=user_message
+            ):
                 self._semantic_merge(best_item, comb_emb)
                 best_item.is_fact = best_item.is_fact or is_new_fact
                 best_item.is_work = best_item.is_work or is_new_work
